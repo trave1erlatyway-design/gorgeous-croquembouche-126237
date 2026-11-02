@@ -1,0 +1,1849 @@
+<!DOCTYPE html>
+<html lang="ru" class="light-mode">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Hafiz</title>
+    
+    <!-- Версия с умной логикой скролла и иммерсивным режимом -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="theme-color" content="#F4F7FA" id="meta-theme-color">
+
+    <!-- PWA Manifest & Icons: настроено на icon.png из папки проекта -->
+    <link rel="icon" type="image/png" href="icon.png">
+    <link rel="apple-touch-icon" href="icon.png">
+    <link rel="manifest" href="data:application/manifest+json,%7B%22name%22%3A%22Hafiz%22%2C%22short_name%22%3A%22Hafiz%22%2C%22start_url%22%3A%22.%22%2C%22display%22%3A%22standalone%22%2C%22background_color%22%3A%22%23F4F7FA%22%2C%22theme_color%22%3A%22%23F4F7FA%22%2C%22icons%22%3A%5B%7B%22src%22%3A%22icon.png%22%2C%22sizes%22%3A%22192x192%20512x512%22%2C%22type%22%3A%22image%2Fpng%22%2C%22purpose%22%3A%22any%20maskable%22%7D%5D%7D">
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <!-- Supabase Client -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['Inter', 'sans-serif'], arabic: ['Amiri', 'serif'] },
+                    colors: {
+                        brand: {
+                            dark: '#353F4B',
+                            light: '#F4F7FA',
+                            input: '#8BA0B2'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        /* === ПЕРЕМЕННЫЕ И ТЕМЫ (ОРИГИНАЛЬНЫЕ ЦВЕТА) === */
+        :root {
+            --bg-main: #0B1120;
+            --text-main: #F8FAFC;
+            --text-muted: #94A3B8;
+            --card-bg: #1E293B;
+            --card-border: rgba(51, 65, 85, 0.6);
+            --card-shadow: 0 10px 30px -10px rgba(0,0,0,0.3);
+            --contrast-banner-bg: #1E293B;
+            --contrast-banner-shadow: 0 15px 35px -5px rgba(0,0,0,0.4);
+            --contrast-input-bg: #0F172A;
+            --contrast-input-text: #F8FAFC;
+            --contrast-icon: #64748B;
+            --accent-grad-1: #059669;
+            --accent-grad-2: #10B981;
+            --nav-bg: rgba(30, 41, 59, 0.95);
+        }
+
+        html.light-mode {
+            --bg-main: #F4F7FA;
+            --text-main: #0F172A;
+            --text-muted: #64748B;
+            --card-bg: #FFFFFF;
+            --card-border: rgba(226, 232, 240, 0.8);
+            --card-shadow: 0 10px 30px -10px rgba(15, 23, 42, 0.08);
+            --contrast-banner-bg: #353F4B; 
+            --contrast-banner-shadow: 0 15px 35px -5px rgba(53, 63, 75, 0.25);
+            --contrast-input-bg: #FFFFFF;
+            --contrast-input-text: #353F4B;
+            --contrast-icon: #8BA0B2;
+            --accent-grad-1: #10B981;
+            --accent-grad-2: #34D399;
+            --nav-bg: rgba(255, 255, 255, 0.95);
+        }
+
+        /* === БАЗОВЫЕ СТИЛИ === */
+        body { 
+            -webkit-tap-highlight-color: transparent; user-select: none; 
+            background-color: var(--bg-main) !important; 
+            color: var(--text-main) !important; 
+            transition: background-color 0.4s ease, color 0.4s ease;
+        }
+        #main-app-wrapper { padding-bottom: calc(7rem + env(safe-area-inset-bottom)); padding-top: env(safe-area-inset-top); }
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; height: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: var(--card-border); border-radius: 4px; }
+        @keyframes fade-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+        .animate-fade-in { animation: fade-in 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards; }
+        
+        .ayah-playing { border-color: var(--accent-grad-2) !important; background: rgba(16, 185, 129, 0.1) !important; box-shadow: 0 0 20px rgba(16, 185, 129, 0.1); }
+        .arabic-text { font-family: 'Amiri', serif; }
+        .ayah-word { transition: color 0.2s ease, text-shadow 0.2s ease; }
+        .progress-ring { transition: stroke-dashoffset 0.2s cubic-bezier(0.4, 0, 0.2, 1); transform: rotate(-90deg); transform-origin: 50% 50%; }
+        .selectable-text { user-select: text; -webkit-user-select: text; }
+
+        /* === СТРУКТУРНЫЕ КЛАССЫ === */
+        .card-base {
+            background-color: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 1.75rem;
+            box-shadow: var(--card-shadow);
+            transition: all 0.3s ease;
+        }
+
+        .contrast-banner {
+            background-color: var(--contrast-banner-bg);
+            border-radius: 2rem;
+            padding: 1.25rem;
+            box-shadow: var(--contrast-banner-shadow);
+            transition: all 0.3s ease;
+            border: 1px solid rgba(255,255,255,0.05);
+        }
+        
+        .contrast-input {
+            background-color: var(--contrast-input-bg);
+            color: var(--contrast-input-text);
+            border-radius: 1.25rem;
+            border: none;
+            padding: 1.125rem 1.125rem 1.125rem 3.25rem;
+            font-size: 0.9rem;
+            font-weight: 600;
+            width: 100%;
+            outline: none;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.03);
+        }
+        .contrast-input::placeholder { color: var(--contrast-icon); font-weight: 500; }
+        .contrast-icon { color: var(--contrast-icon); font-size: 1.1rem; }
+
+        .green-gradient {
+            background: linear-gradient(135deg, var(--accent-grad-1) 0%, var(--accent-grad-2) 100%) !important;
+            color: white !important;
+            border: none !important;
+            box-shadow: 0 8px 20px -6px rgba(16, 185, 129, 0.5);
+        }
+
+        .bg-emerald-600, .bg-emerald-500 { background: linear-gradient(135deg, var(--accent-grad-1), var(--accent-grad-2)) !important; color: white !important; border: none !important; box-shadow: 0 8px 20px -6px rgba(16,185,129,0.5); }
+        .text-emerald-400 { color: var(--accent-grad-2) !important; }
+        .border-emerald-500 { border-color: var(--accent-grad-2) !important; }
+
+        /* === СПЕЦИФИЧНЫЕ КОМПОНЕНТЫ === */
+        .task-card { background-color: var(--card-bg); border: 1px solid var(--card-border); border-radius: 1.5rem; padding: 1rem 1.25rem; transition: all 0.2s ease; margin-bottom: 0.75rem; display: flex; align-items: center; justify-content: space-between; cursor: pointer; box-shadow: var(--card-shadow); }
+        .task-card:active { transform: scale(0.98); }
+        .task-card .task-time { font-size: 12px; padding: 6px 10px; border-radius: 10px; background-color: var(--bg-main); color: var(--text-muted); border: 1px solid var(--card-border); font-family: monospace; font-weight: 700; }
+        .task-card .task-title { color: var(--text-main); font-size: 14px; font-weight: 700; }
+        .task-card .task-subtitle { color: var(--text-muted); font-size: 11px; margin-top: 2px; font-weight: 500; }
+        .task-card .check-circle { border: 2px solid var(--card-border); border-radius: 10px; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; transition: all 0.2s ease; background-color: var(--bg-main); }
+        .task-card.completed-task .task-title { text-decoration: line-through; opacity: 0.6; }
+        .task-card.completed-task .check-circle { background: linear-gradient(135deg, var(--accent-grad-1), var(--accent-grad-2)); border-color: transparent; color: white; box-shadow: 0 4px 10px rgba(16, 185, 129, 0.3); }
+
+        .prayer-card { border-color: rgba(245, 158, 11, 0.3); background-color: rgba(245, 158, 11, 0.03); }
+        .prayer-card .task-title { color: #f59e0b; }
+        .prayer-card .task-time { background-color: rgba(245, 158, 11, 0.1); color: #f59e0b; border-color: rgba(245, 158, 11, 0.2); }
+        .prayer-card.completed-task .task-title { color: var(--text-muted); opacity: 0.7; }
+        .prayer-card.completed-task .check-circle { background: #f59e0b; border-color: #f59e0b; box-shadow: 0 4px 10px rgba(245, 158, 11, 0.3); }
+
+        .premium-card { background: linear-gradient(135deg, #1e293b 0%, #020617 100%) !important; border: 1px solid rgba(16, 185, 129, 0.2) !important; border-radius: 2rem; }
+        html.light-mode .premium-card { background: linear-gradient(135deg, #353F4B 0%, #1e293b 100%) !important; box-shadow: 0 20px 40px -10px rgba(53, 63, 75, 0.3); }
+        
+        #toast-box { background-color: var(--contrast-banner-bg); border: none; color: #FFFFFF; border-radius: 2rem; box-shadow: var(--contrast-banner-shadow); padding: 0.75rem 1.25rem; }
+        #heart-banner { background-color: var(--contrast-banner-bg); border: 1px solid rgba(255,255,255,0.1); border-radius: 2rem; box-shadow: var(--contrast-banner-shadow); }
+        #heart-banner p.text-slate-100 { color: #FFFFFF !important; }
+        #heart-banner p.text-slate-400 { color: var(--contrast-icon) !important; }
+        #heart-banner .bg-slate-950 { background-color: var(--contrast-input-bg); border: none; }
+
+        @keyframes shimmer { 0% { transform: translateX(-100%); } 100% { transform: translateX(100%); } }
+
+        /* === КНОПКА СКРОЛЛА (ВВЕРХ / ВНИЗ) === */
+        #global-scroll-btn {
+            position: fixed;
+            left: 50%;
+            bottom: calc(5.5rem + env(safe-area-inset-bottom));
+            transform: translateX(-50%) translateY(30px) scale(0.9);
+            opacity: 0;
+            pointer-events: none;
+            transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+            z-index: 46;
+        }
+
+        #global-scroll-btn.active {
+            transform: translateX(-50%) translateY(0) scale(1);
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        body.mini-player-active #global-scroll-btn {
+            bottom: calc(10.5rem + env(safe-area-inset-bottom));
+        }
+
+        /* === ИММЕРСИВНЫЙ РЕЖИМ (СКРЫТИЕ UI ПРИ ЧТЕНИИ) === */
+        #main-header { padding-top: env(safe-area-inset-top); }
+        
+        body.ui-hidden #main-header {
+            transform: translateY(calc(-100% - env(safe-area-inset-top)));
+            opacity: 0;
+            pointer-events: none;
+        }
+        body.ui-hidden #bottom-nav {
+            transform: translateY(calc(100% + env(safe-area-inset-bottom)));
+            opacity: 0;
+            pointer-events: none;
+        }
+        body.ui-hidden #global-scroll-btn {
+            bottom: calc(2rem + env(safe-area-inset-bottom));
+        }
+        body.ui-hidden.mini-player-active #global-scroll-btn {
+            bottom: calc(6rem + env(safe-area-inset-bottom));
+        }
+        body.ui-hidden #quran-mini-player {
+            bottom: calc(1.5rem + env(safe-area-inset-bottom));
+        }
+        #quran-mini-player {
+            transition: bottom 0.3s ease-in-out, opacity 0.3s ease, transform 0.3s ease;
+        }
+    </style>
+
+    <svg width="0" height="0" class="absolute">
+        <defs>
+            <linearGradient id="greenGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stop-color="#059669" />
+                <stop offset="100%" stop-color="#10B981" />
+            </linearGradient>
+        </defs>
+    </svg>
+</head>
+<body class="min-h-screen flex flex-col font-sans overflow-x-hidden relative z-0">
+
+    <!-- HEART BANNER -->
+    <div id="heart-banner" class="fixed top-4 left-1/2 -translate-x-1/2 w-[90%] max-w-sm z-[900] transform -translate-y-32 opacity-0 flex flex-col gap-3 p-4 backdrop-blur-xl">
+        <div class="flex justify-between items-center">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-2xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-base border border-emerald-500/30">
+                    <i class="fa-solid fa-shield-heart"></i>
+                </div>
+                <div>
+                    <p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Защита сердца</p>
+                    <p class="text-sm font-bold text-slate-100" id="heart-level-text">Уровень 1</p>
+                </div>
+            </div>
+            <div class="text-right">
+                <p class="text-[11px] text-emerald-400 font-mono font-bold" id="heart-xp-text">0 / 100 XP</p>
+                <p class="text-[11px] font-bold text-emerald-500 animate-pulse mt-0.5" id="heart-xp-gained"></p>
+            </div>
+        </div>
+        <div class="w-full bg-slate-950 h-2.5 rounded-full overflow-hidden p-0">
+            <div id="heart-progress-fill" class="green-gradient h-full w-0 rounded-full transition-all duration-500 relative overflow-hidden">
+                <div class="absolute inset-0 bg-white/20 w-full animate-[shimmer_2s_infinite]"></div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- TOAST NOTIFICATION -->
+    <div id="toast-box" class="fixed top-4 left-1/2 -translate-x-1/2 z-[800] hidden items-center gap-3 backdrop-blur-md transition-all duration-300">
+        <i class="fa-solid fa-circle-check text-emerald-400 text-base"></i>
+        <span id="toast-text" class="text-xs font-bold tracking-wide">Уведомление</span>
+    </div>
+
+    <!-- ALARM MODAL -->
+    <div id="alarm-modal" class="fixed inset-0 bg-black/80 z-[550] hidden items-center justify-center p-4 backdrop-blur-md">
+        <div class="card-base w-full max-w-xs p-8 text-center animate-fade-in border-emerald-500/30">
+            <div class="w-20 h-20 bg-emerald-500/10 text-emerald-400 rounded-full flex items-center justify-center mx-auto mb-5 text-4xl animate-bounce">
+                <i class="fa-solid fa-bell"></i>
+            </div>
+            <p class="text-xs font-bold uppercase tracking-widest text-emerald-400 mb-2">Напоминание</p>
+            <h3 id="alarm-modal-title" class="text-2xl font-black text-[var(--text-main)] mb-1">Задача</h3>
+            <p id="alarm-modal-time" class="text-base font-mono text-[var(--text-muted)] mb-6">00:00</p>
+            <button onclick="stopAlarmModal()" class="w-full green-gradient py-4 rounded-2xl text-sm font-bold transition active:scale-95">Понятно (Отключить звук)</button>
+        </div>
+    </div>
+
+    <!-- MODAL: BOOKMARKS -->
+    <div id="bookmarks-modal" class="fixed inset-0 bg-black/60 z-[550] hidden flex-col justify-end backdrop-blur-md">
+        <div class="bg-[var(--card-bg)] rounded-t-[2.5rem] p-6 animate-fade-in shadow-[0_-20px_50px_rgba(0,0,0,0.2)] max-h-[85vh] flex flex-col border-t border-[var(--card-border)]">
+            <div class="flex justify-between items-center mb-6 shrink-0 px-2">
+                <h3 class="font-black text-[var(--text-main)] text-base flex items-center gap-2"><i class="fa-solid fa-bookmark text-emerald-400"></i> Закладки Корана</h3>
+                <button onclick="playSnd('btn'); closeModal('bookmarks-modal')" class="text-[var(--text-muted)] hover:text-[var(--text-main)] w-10 h-10 flex items-center justify-center bg-[var(--bg-main)] rounded-full transition-colors"><i class="fa-solid fa-times text-lg"></i></button>
+            </div>
+            <div id="bookmarks-container" class="overflow-y-auto custom-scrollbar flex-1 space-y-3 pr-2 pb-6"></div>
+        </div>
+    </div>
+
+    <!-- HEADER -->
+    <header id="main-header" class="fixed top-0 left-0 w-full z-40 transition-all duration-300 ease-in-out">
+        <div class="bg-[var(--card-bg)]/90 backdrop-blur-2xl max-w-2xl mx-auto px-4 py-2.5 flex items-center justify-between rounded-b-[1.5rem] shadow-sm border-b border-[var(--card-border)]/50">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 bg-[var(--bg-main)] rounded-xl border border-[var(--card-border)] flex items-center justify-center text-emerald-500 shadow-inner relative overflow-hidden">
+                    <!-- Загружает icon.png, если он есть, либо отображает отцентрированный векторный логотип -->
+                    <img src="icon.png" alt="Hafiz" class="w-full h-full object-cover" onerror="this.style.display='none'; document.getElementById('header-svg-logo').style.display='block';">
+                    <svg id="header-svg-logo" viewBox="0 0 48 48" class="w-6 h-6 text-emerald-500" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M24 41S10 31.5 10 19.5C10 13.8 14.5 9.5 20 9.5C23.5 9.5 26.6 11.4 28 14.2C29.4 11.4 32.5 9.5 36 9.5C41.5 9.5 46 13.8 46 19.5C46 31.5 32 41 32 41L24 41Z" 
+                              class="text-emerald-500/20 dark:text-emerald-400/25 fill-current stroke-emerald-500/50 dark:stroke-emerald-400/50" 
+                              stroke-width="2.4" 
+                              stroke-linejoin="round"/>
+                        <path d="M15.5 36.5L24 31L32.5 36.5M18 33.5L24 29L30 33.5" 
+                              stroke="currentColor" 
+                              stroke-width="2.2" 
+                              stroke-linecap="round" 
+                              stroke-linejoin="round" 
+                              class="text-emerald-600 dark:text-emerald-400"/>
+                        <path d="M13 18.5C16.8 17.3 20.8 17.7 24 19.7C27.2 17.7 31.2 17.3 35 18.5V29C31.2 27.8 27.2 28.2 24 30.2C20.8 28.2 16.8 27.8 13 29V18.5Z" 
+                              class="fill-[var(--card-bg)] stroke-emerald-600 dark:stroke-emerald-400" 
+                              stroke-width="2.3" 
+                              stroke-linejoin="round"/>
+                        <path d="M24 19.7V30.2" 
+                              stroke="currentColor" 
+                              stroke-width="2.2" 
+                              stroke-linecap="round" 
+                              class="text-emerald-600 dark:text-emerald-400"/>
+                    </svg>
+                </div>
+                <div>
+                    <h1 class="text-base font-black tracking-wide text-[var(--text-main)] leading-tight">Hafiz</h1>
+                    <p class="text-[10px] text-[var(--text-muted)] font-semibold capitalize mt-0.5" id="header-date"></p>
+                </div>
+            </div>
+            <div class="flex items-center gap-2">
+                <button id="install-pwa-btn" onclick="playSnd('btn'); installPWA()" class="hidden h-9 px-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 flex items-center gap-1.5 font-bold shadow-sm active:scale-95 transition" title="Установить приложение">
+                    <i class="fa-solid fa-download text-xs"></i>
+                    <span class="text-[10px]">Установить</span>
+                </button>
+                <button onclick="playSnd('btn'); cycleKnowledgeLevel()" class="h-9 px-3 rounded-xl bg-[var(--bg-main)] border border-[var(--card-border)] flex items-center gap-1.5 text-[var(--text-muted)] transition-colors hover:text-[var(--text-main)] shadow-sm active:scale-95" title="Изменить уровень знаний">
+                    <i class="fa-solid fa-layer-group text-emerald-500 text-[10px]"></i>
+                    <span id="level-btn-label" class="text-[10px] font-bold">Средний</span>
+                </button>
+                <button onclick="playSnd('btn'); toggleTestTheme()" class="w-9 h-9 rounded-xl bg-[var(--bg-main)] border border-[var(--card-border)] flex items-center justify-center text-[var(--text-muted)] hover:text-[var(--text-main)] transition shadow-sm active:scale-95" title="Сменить тему">
+                    <i class="fa-solid fa-sun text-xs" id="theme-icon"></i>
+                </button>
+                <button id="header-bookmarks-btn" onclick="playSnd('btn'); openBookmarksModal()" class="hidden w-9 h-9 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 items-center justify-center hover:bg-emerald-500/20 transition relative active:scale-95">
+                    <i class="fa-solid fa-bookmark text-xs"></i>
+                    <span id="bookmarks-badge" class="hidden absolute -top-1 -right-1 w-4 h-4 rounded-full green-gradient text-[9px] font-black flex items-center justify-center shadow-md">0</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- MAIN APP WRAPPER -->
+    <div id="main-app-wrapper" class="flex-1 flex flex-col w-full h-full relative max-w-2xl mx-auto">
+
+        <main class="flex-1 relative space-y-5 p-4 pt-[5rem] pb-32">
+            
+            <!-- TAB 1: REFERENCE -->
+            <section id="tab-reference" class="hidden space-y-5 animate-fade-in">
+                
+                <!-- МЕНЮ КАТЕГОРИЙ (ПО УМОЛЧАНИЮ) -->
+                <div id="ref-categories" class="space-y-4">
+                    <div class="card-base p-5 flex items-center justify-between cursor-pointer active:scale-95 transition-transform" onclick="openReferenceCategory(1)">
+                        <div class="flex items-center gap-4">
+                            <div class="w-12 h-12 rounded-2xl bg-emerald-500/10 text-emerald-500 flex items-center justify-center text-xl shadow-inner border border-emerald-500/20"><i class="fa-solid fa-book"></i></div>
+                            <div>
+                                <h3 class="font-black text-[var(--text-main)] text-sm tracking-wide">Часть 1</h3>
+                                <p class="text-xs text-[var(--text-muted)] mt-0.5 font-medium">Основные азкары (1-23)</p>
+                            </div>
+                        </div>
+                        <i class="fa-solid fa-chevron-right text-[var(--contrast-icon)] text-sm"></i>
+                    </div>
+                    
+                    <div class="card-base p-5 flex items-center justify-between cursor-pointer active:scale-95 transition-transform" onclick="openReferenceCategory(2)">
+                        <div class="flex items-center gap-4">
+                            <div class="w-12 h-12 rounded-2xl bg-emerald-500/10 text-emerald-500 flex items-center justify-center text-xl shadow-inner border border-emerald-500/20"><i class="fa-solid fa-book-open"></i></div>
+                            <div>
+                                <h3 class="font-black text-[var(--text-main)] text-sm tracking-wide">Часть 2</h3>
+                                <p class="text-xs text-[var(--text-muted)] mt-0.5 font-medium">Новые азкары (24+)</p>
+                            </div>
+                        </div>
+                        <i class="fa-solid fa-chevron-right text-[var(--contrast-icon)] text-sm"></i>
+                    </div>
+                    
+                    <!-- Лоадер для предзагрузки в фоне -->
+                    <div id="ref-preload-status" class="text-center py-4 text-[var(--text-muted)] text-[11px] font-medium opacity-50">
+                        <i class="fa-solid fa-cloud-arrow-down mr-1"></i> Загрузка базы...
+                    </div>
+                </div>
+
+                <!-- СПИСОК АЗКАРОВ (СКРЫТ ПО УМОЛЧАНИЮ) -->
+                <div id="ref-list-view" class="hidden space-y-5">
+                    <button onclick="closeReferenceCategory()" class="text-[var(--text-muted)] hover:text-[var(--text-main)] text-xs font-bold flex items-center justify-center gap-2 w-full bg-[var(--card-bg)] shadow-sm px-4 py-3.5 rounded-2xl border border-[var(--card-border)] active:scale-95 transition">
+                        <i class="fa-solid fa-arrow-left"></i> Назад к категориям
+                    </button>
+                    
+                    <div class="contrast-banner">
+                        <div class="flex items-center justify-between gap-2 mb-4 px-1">
+                            <h2 id="ref-list-title" class="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2.5">
+                                <i class="fa-solid fa-book-open"></i> Справочник
+                            </h2>
+                            <div class="flex items-center gap-2">
+                                <button onclick="playSnd('btn'); adjustAzkarFontSize(-1)" class="w-10 h-10 rounded-2xl bg-[var(--contrast-input-bg)] text-[var(--contrast-input-text)] text-xs font-bold hover:opacity-80 active:scale-95 transition shadow-sm" title="Уменьшить шрифт">A-</button>
+                                <button onclick="playSnd('btn'); adjustAzkarFontSize(1)" class="w-10 h-10 rounded-2xl bg-[var(--contrast-input-bg)] text-[var(--contrast-input-text)] text-xs font-bold hover:opacity-80 active:scale-95 transition shadow-sm" title="Увеличить шрифт">A+</button>
+                                <button id="btn-raw-mode" onclick="playSnd('btn'); toggleVerbatimRawMode()" class="h-10 px-3.5 text-[11px] font-bold bg-[var(--contrast-input-bg)] text-[var(--contrast-icon)] rounded-2xl hover:text-[var(--contrast-input-text)] transition shadow-sm active:scale-95" title="Исходный текст">
+                                    <i class="fa-solid fa-code mr-1.5"></i>Исходник
+                                </button>
+                            </div>
+                        </div>
+                        <div class="relative w-full">
+                            <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                                <i class="fa-solid fa-magnifying-glass contrast-icon"></i>
+                            </div>
+                            <input id="azkar-search-input" type="text" oninput="filterFullAzkars()" placeholder="Поиск по ситуации, переводу..." class="contrast-input">
+                        </div>
+                    </div>
+                    
+                    <div id="full-azkars-list-container" class="space-y-4 pb-8">
+                        <!-- Сюда попадут азкары выбранной части -->
+                    </div>
+                </div>
+            </section>
+
+            <!-- TAB 2: TODAY -->
+            <section id="tab-today" class="hidden space-y-5 animate-fade-in">
+                <div class="card-base p-5 bg-emerald-500/5 border-emerald-500/20">
+                    <div class="flex justify-between items-start mb-3">
+                        <h3 class="text-emerald-500 font-bold text-xs uppercase tracking-wider flex items-center gap-2">
+                            <i class="fa-solid fa-quote-left"></i> Хадис дня
+                            <span id="hadith-badge" class="text-[10px] bg-emerald-500/10 px-2.5 py-1 rounded-lg text-emerald-600 dark:text-emerald-400 cursor-pointer font-bold" onclick="playSnd('btn'); cycleKnowledgeLevel()" title="Изменить уровень">Средний</span>
+                        </h3>
+                        <button onclick="playSnd('btn'); generateHadith()" class="text-[10px] bg-[var(--bg-main)] text-emerald-500 px-3 py-1.5 rounded-xl border border-[var(--card-border)] active:scale-95 transition-transform font-bold shadow-sm">Другой</button>
+                    </div>
+                    <p id="daily-hadith-text" class="text-[var(--text-main)] text-sm italic mb-2.5 leading-relaxed font-medium">Загрузка из облака...</p>
+                    <p id="daily-hadith-source" class="text-[var(--text-muted)] text-[11px] font-semibold"></p>
+                </div>
+
+                <div class="card-base p-5">
+                    <div class="flex justify-between items-center mb-4">
+                        <div>
+                            <h3 class="font-bold text-[var(--text-main)] uppercase tracking-wide text-xs flex items-center gap-2">
+                                <span>Азкары и Дуа</span>
+                                <span id="azkar-count-badge" class="text-[11px] text-emerald-500 font-bold bg-emerald-500/10 px-2 py-0.5 rounded-lg"></span>
+                            </h3>
+                            <p id="azkar-time-recommendation" class="text-[11px] text-[var(--text-muted)] mt-1 font-medium">Рекомендовано по текущему времени</p>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <button onclick="playSnd('btn'); resetMainAzkarCounters()" class="w-10 h-10 bg-[var(--bg-main)] border border-[var(--card-border)] text-[var(--text-muted)] rounded-2xl hover:text-[var(--text-main)] active:scale-95 transition shadow-sm">
+                                <i class="fa-solid fa-rotate-left"></i>
+                            </button>
+                            <select id="azkar-time" class="h-10 bg-[var(--bg-main)] border border-[var(--card-border)] text-[11px] font-bold text-[var(--text-main)] rounded-2xl px-3 outline-none transition-colors shadow-sm" onchange="renderAzkar()">
+                                <option value="morning">Утренние</option>
+                                <option value="evening">Вечерние</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div id="azkar-container" class="space-y-3">
+                        <div class="text-center py-6 text-[var(--text-muted)] font-medium text-xs">Загрузка данных из облака...</div>
+                    </div>
+                </div>
+
+                <div class="card-base p-6 text-center relative overflow-hidden">
+                    <div class="flex justify-between items-center mb-6">
+                        <h3 class="font-bold text-emerald-500 uppercase tracking-wider text-xs flex items-center gap-2">
+                            <i class="fa-solid fa-hand-holding-heart"></i> Умный тасбих
+                        </h3>
+                        <div class="flex items-center gap-2">
+                            <button onclick="playSnd('btn'); cycleTasbihTarget()" id="tasbih-target-btn" class="text-[10px] bg-[var(--bg-main)] border border-[var(--card-border)] text-emerald-500 font-bold px-3 py-2 rounded-xl active:scale-95 transition shadow-sm">Цель: 33</button>
+                            <span id="tasbih-total-badge" class="text-[10px] bg-[var(--bg-main)] border border-[var(--card-border)] text-[var(--text-muted)] font-bold px-3 py-2 rounded-xl shadow-sm">Всего: 0</span>
+                            <button onclick="playSnd('btn'); resetTasbih()" class="text-[10px] bg-[var(--bg-main)] border border-[var(--card-border)] text-[var(--text-muted)] font-bold px-3 py-2 rounded-xl hover:text-[var(--text-main)] transition active:scale-95 shadow-sm">Сброс</button>
+                        </div>
+                    </div>
+                    <div class="mb-8 mt-2">
+                        <p class="arabic-text text-4xl mb-3 transition-all duration-300 text-emerald-500 font-bold" id="tasbih-arabic">سُبْحَانَ ٱللَّٰهِ</p>
+                        <p class="text-sm font-bold text-[var(--text-main)] transition-all duration-300 opacity-90" id="tasbih-translation">Субханаллах (Пречист Аллах)</p>
+                    </div>
+                    <div class="relative w-44 h-44 mx-auto cursor-pointer select-none active:scale-95 transition-transform" onclick="incrementTasbih()">
+                        <svg class="w-full h-full drop-shadow-xl" viewBox="0 0 100 100">
+                            <circle cx="50" cy="50" r="45" fill="none" stroke="var(--card-border)" stroke-width="5"></circle>
+                            <circle id="tasbih-progress" class="progress-ring" cx="50" cy="50" r="45" fill="none" stroke="url(#greenGrad)" stroke-width="6" stroke-dasharray="283" stroke-dashoffset="283" stroke-linecap="round"></circle>
+                        </svg>
+                        <div class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                            <span id="tasbih-count" class="text-5xl font-black text-[var(--text-main)] tracking-tighter">0</span>
+                            <span id="tasbih-target-Display" class="text-xs font-bold mt-1 text-[var(--text-muted)]">/ 33</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- TAB 3: QURAN (Коран - Онлайн загрузка из интернета с зеркалом) -->
+            <section id="tab-quran" class="hidden space-y-5 animate-fade-in">
+                
+                <div id="quran-continue-prompt" class="hidden card-base p-4 flex items-center justify-between border-emerald-500/30 bg-emerald-500/5">
+                    <div>
+                        <p class="text-[11px] text-emerald-500 font-bold uppercase tracking-wider mb-1">Вы остановились</p>
+                        <p class="text-sm font-bold text-[var(--text-main)]" id="quran-continue-text">Сура 1, Аят 1</p>
+                    </div>
+                    <div class="flex gap-2.5">
+                        <button onclick="playSnd('btn'); continueQuran()" class="green-gradient px-4 py-2.5 rounded-2xl text-xs font-bold transition active:scale-95">Продолжить</button>
+                        <button onclick="playSnd('btn'); dismissQuranPrompt()" class="bg-[var(--bg-main)] text-[var(--text-muted)] px-3.5 py-2.5 rounded-2xl text-xs font-bold border border-[var(--card-border)] active:scale-95 transition shadow-sm">Скрыть</button>
+                    </div>
+                </div>
+
+                <div id="quran-search-banner" class="contrast-banner flex flex-col gap-3">
+                    <div class="relative w-full">
+                        <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                            <i class="fa-solid fa-magnifying-glass contrast-icon"></i>
+                        </div>
+                        <input type="text" id="surah-search" placeholder="Поиск суры (название, номер)..." class="contrast-input" oninput="filterSurahs()">
+                    </div>
+                    <div class="relative w-full">
+                         <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                            <i class="fa-solid fa-microphone contrast-icon"></i>
+                        </div>
+                        <select id="qari-select" class="contrast-input appearance-none cursor-pointer">
+                            <option value="ar.husary">Махмуд Халиль аль-Хусари</option>
+                            <option value="ar.abdulbasitmurattal">Абдул Басит Муратталь</option>
+                            <option value="ar.mahermuaiqly">Махер аль-Муайкли</option>
+                        </select>
+                        <div class="absolute inset-y-0 right-0 pr-4 flex items-center pointer-events-none">
+                            <i class="fa-solid fa-chevron-down contrast-icon text-sm"></i>
+                        </div>
+                    </div>
+                </div>
+                
+                <div id="surah-list" class="space-y-3.5 pt-2">
+                    <div class="text-center py-12 text-[var(--text-muted)]"><i class="fa-solid fa-circle-notch fa-spin text-3xl mb-3"></i><br><span class="text-sm font-medium">Загрузка сур...</span></div>
+                </div>
+                
+                <div id="surah-reader" class="hidden space-y-5">
+                    
+                    <div id="quran-top-player" class="contrast-banner flex flex-row items-center justify-between mb-2 shadow-md border border-[var(--card-border)]/50">
+                        <div class="flex items-center gap-3.5 min-w-0 pr-2">
+                            <div class="w-12 h-12 rounded-2xl bg-[var(--contrast-input-bg)] flex items-center justify-center text-[var(--contrast-icon)] shrink-0 transition-colors" id="top-player-icon-box">
+                                <i class="fa-solid fa-book-quran text-xl transition-all" id="top-player-anim"></i>
+                            </div>
+                            <div class="min-w-0">
+                                <p class="text-sm font-bold text-white truncate" id="top-player-title">Сура</p>
+                                <p class="text-[11px] text-[var(--contrast-icon)] font-bold mt-0.5" id="top-player-status">Готов к чтению</p>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-2 shrink-0">
+                            <button onclick="playSnd('btn'); toggleAudioMode()" id="top-mode-btn" class="px-3 h-10 rounded-2xl bg-[var(--contrast-input-bg)] text-[var(--contrast-icon)] flex items-center justify-center transition font-bold text-[10px] w-16 shadow-sm active:scale-95 uppercase tracking-wider">
+                                Следом
+                            </button>
+                            <button onclick="playSnd('btn'); toggleMiniPlayerPlay()" id="top-play-btn" class="w-10 h-10 rounded-2xl bg-[var(--contrast-input-bg)] text-[var(--contrast-icon)] flex items-center justify-center transition shadow-sm active:scale-95 hover:text-emerald-500">
+                                <i class="fa-solid fa-play text-sm"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <button onclick="playSnd('btn'); closeSurah()" class="text-emerald-500 text-xs font-bold flex items-center justify-center gap-2 w-full bg-[var(--card-bg)] shadow-sm px-4 py-3.5 rounded-2xl border border-[var(--card-border)] active:scale-95 transition">
+                        <i class="fa-solid fa-arrow-left"></i> Назад к списку сур
+                    </button>
+                    
+                    <div class="card-base p-4 sticky top-4 z-20 flex justify-center items-center backdrop-blur-xl bg-[var(--card-bg)]/90">
+                        <div class="text-base font-black text-[var(--text-main)] text-center w-full" id="reader-surah-name">Сура</div>
+                    </div>
+                    
+                    <div id="ayahs-container" class="space-y-4"></div>
+                </div>
+            </section>
+
+            <!-- TAB 4: SCHEDULE -->
+            <section id="tab-schedule" class="space-y-5 animate-fade-in">
+                <div class="premium-card p-5 relative overflow-hidden">
+                    <div class="flex justify-between items-center mb-3">
+                        <h2 class="text-xs font-bold text-emerald-400 uppercase tracking-wider">Время намаза</h2>
+                        <span id="schedule-city-badge" class="text-[10px] text-white bg-white/10 backdrop-blur-sm border border-white/20 px-2.5 py-1 rounded-xl font-bold">Грозный</span>
+                    </div>
+                    <div class="flex justify-between items-end mb-5">
+                        <div>
+                            <p class="text-xs text-emerald-400 mb-1 font-semibold">Сейчас:</p>
+                            <p id="current-prayer-name" class="text-3xl font-black text-white">Зухр</p>
+                        </div>
+                        <div class="text-right">
+                            <p class="text-xs text-slate-300 mb-1 font-semibold">Следующий: <span id="next-prayer-name" class="text-emerald-400">Аср</span></p>
+                            <p id="prayer-countdown" class="text-3xl font-mono font-black text-white tracking-tighter drop-shadow-md">00:00:00</p>
+                        </div>
+                    </div>
+                    <div id="prayers-mini-grid" class="flex justify-between pt-4 border-t border-white/10 text-center"></div>
+                </div>
+                
+                <div class="card-base p-5">
+                    <div class="flex justify-between items-center mb-3">
+                        <span class="text-xs font-bold text-[var(--text-muted)]">Прогресс дня</span>
+                        <span id="progress-percent" class="text-sm font-black text-emerald-500">0%</span>
+                    </div>
+                    <div class="w-full bg-[var(--bg-main)] h-3.5 rounded-full overflow-hidden p-0.5 border border-[var(--card-border)] inset-shadow-sm">
+                        <div id="progress-bar-fill" class="green-gradient h-full w-0 rounded-full transition-all duration-500"></div>
+                    </div>
+                </div>
+
+                <div class="flex gap-2 overflow-x-auto pb-2 custom-scrollbar text-xs font-bold" id="days-tabs"></div>
+                
+                <div class="flex justify-between items-center pt-2 pb-1">
+                    <div>
+                        <h2 class="text-sm font-black text-[var(--text-main)] uppercase flex items-center gap-2">
+                            <i class="fa-solid fa-list-check text-emerald-500"></i> Распорядок
+                        </h2>
+                    </div>
+                    <div class="flex gap-2">
+                        <button onclick="playSnd('btn'); openAddTaskModal()" class="text-xs bg-[var(--bg-main)] text-emerald-500 border border-[var(--card-border)] px-4 py-2 rounded-2xl font-bold transition shadow-sm active:scale-95 hover:bg-[var(--card-bg)]">Добавить задачу</button>
+                    </div>
+                </div>
+                <div id="tasks-container" class="space-y-3"></div>
+            </section>
+        </main>
+
+        <!-- ПЛАВАЮЩАЯ КНОПКА СКРОЛЛА: ВВЕРХ / ВНИЗ -->
+        <button id="global-scroll-btn" onclick="executeScrollAction()" class="green-gradient flex items-center gap-2.5 px-5 py-3 rounded-full text-xs font-black shadow-2xl active:scale-95 backdrop-blur-md cursor-pointer border border-white/20 select-none">
+            <i id="global-scroll-icon" class="fa-solid fa-arrow-down text-sm"></i>
+            <span id="global-scroll-text" class="tracking-wide uppercase text-[11px]">Вниз</span>
+        </button>
+
+        <!-- QURAN FLOATING MINI-PLAYER -->
+        <div id="quran-mini-player" class="hidden fixed bottom-[5.5rem] left-4 right-4 max-w-xl mx-auto z-45 card-base !rounded-3xl p-3 shadow-2xl backdrop-blur-2xl bg-[var(--card-bg)]/95 flex items-center justify-between animate-fade-in border-emerald-500/30">
+            <div class="flex items-center gap-3.5 min-w-0 pr-2">
+                <div class="w-12 h-12 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-500 shrink-0">
+                    <i class="fa-solid fa-volume-high animate-pulse text-lg"></i>
+                </div>
+                <div class="min-w-0">
+                    <p class="text-sm font-bold text-[var(--text-main)] truncate" id="mini-player-title">Сура • Аят</p>
+                    <p class="text-[11px] text-emerald-500 font-bold mt-0.5" id="mini-player-status">Воспроизведение...</p>
+                </div>
+            </div>
+            <div class="flex items-center gap-2 shrink-0">
+                <button id="mini-mode-btn" onclick="playSnd('btn'); toggleAudioMode()" class="px-3 h-10 rounded-2xl bg-[var(--bg-main)] text-[var(--text-muted)] border border-[var(--card-border)] flex items-center justify-center transition font-bold text-[10px] w-16 shadow-sm active:scale-95 uppercase tracking-wider">
+                    Следом
+                </button>
+                <button onclick="playSnd('btn'); toggleMiniPlayerPlay()" id="mini-play-btn" class="w-10 h-10 rounded-2xl green-gradient flex items-center justify-center transition shadow-md active:scale-95 text-white">
+                    <i class="fa-solid fa-pause text-sm"></i>
+                </button>
+                <button onclick="playSnd('btn'); stopAudio()" class="w-10 h-10 rounded-2xl bg-[var(--bg-main)] text-[var(--text-muted)] border border-[var(--card-border)] flex items-center justify-center transition hover:text-red-500 shadow-sm active:scale-95">
+                    <i class="fa-solid fa-xmark text-sm"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- BOTTOM NAVIGATION -->
+        <nav id="bottom-nav" class="bg-[var(--nav-bg)] backdrop-blur-2xl border-t border-[var(--card-border)] fixed bottom-0 left-0 w-full z-40 transition-all duration-300 ease-in-out rounded-t-[2.5rem] shadow-[0_-10px_40px_rgba(0,0,0,0.08)] pb-safe pt-2 px-2">
+            <div class="max-w-2xl mx-auto flex justify-around items-center p-2 mb-1">
+                <button onclick="playSnd('nav'); switchTab('reference')" id="nav-reference" class="flex-1 flex flex-col items-center py-1 text-[var(--text-muted)] hover:text-emerald-500 transition">
+                    <div class="w-10 h-8 flex items-center justify-center rounded-xl mb-1 transition-all"><i class="fa-solid fa-book-open text-[1.3rem]"></i></div>
+                    <span class="text-[10px] font-bold tracking-wide">Справочник</span>
+                </button>
+                <button onclick="playSnd('nav'); switchTab('today')" id="nav-today" class="flex-1 flex flex-col items-center py-1 text-[var(--text-muted)] hover:text-emerald-500 transition">
+                    <div class="w-10 h-8 flex items-center justify-center rounded-xl mb-1 transition-all"><i class="fa-solid fa-star text-[1.3rem]"></i></div>
+                    <span class="text-[10px] font-bold tracking-wide">Сегодня</span>
+                </button>
+                <button onclick="playSnd('nav'); switchTab('quran')" id="nav-quran" class="flex-1 flex flex-col items-center py-1 text-[var(--text-muted)] hover:text-emerald-500 transition">
+                    <div class="w-10 h-8 flex items-center justify-center rounded-xl mb-1 transition-all"><i class="fa-solid fa-book-quran text-[1.3rem]"></i></div>
+                    <span class="text-[10px] font-bold tracking-wide">Коран</span>
+                </button>
+                <button onclick="playSnd('nav'); switchTab('schedule')" id="nav-schedule" class="flex-1 flex flex-col items-center py-1 text-emerald-500 transition">
+                    <div class="w-12 h-8 bg-emerald-500/10 flex items-center justify-center rounded-xl mb-1 transition-all"><i class="fa-solid fa-list-check text-[1.3rem]"></i></div>
+                    <span class="text-[10px] font-bold tracking-wide">Главная</span>
+                </button>
+            </div>
+        </nav>
+    </div>
+
+    <!-- MODAL: ADD TASK -->
+    <div id="add-task-modal" class="fixed inset-0 bg-black/60 z-[550] hidden flex-col justify-end backdrop-blur-md">
+        <div class="bg-[var(--card-bg)] rounded-t-[2.5rem] p-7 border-t border-[var(--card-border)] animate-fade-in shadow-[0_-20px_50px_rgba(0,0,0,0.2)] transition-colors">
+            <div class="flex justify-between items-center mb-6">
+                <h3 id="modal-task-header" class="font-black text-[var(--text-main)] text-lg tracking-wide">Добавить задачу</h3>
+                <button onclick="playSnd('btn'); closeModal('add-task-modal')" class="text-[var(--text-muted)] hover:text-[var(--text-main)] w-10 h-10 flex items-center justify-center bg-[var(--bg-main)] rounded-full transition-colors"><i class="fa-solid fa-times text-lg"></i></button>
+            </div>
+            <div id="task-templates-section" class="mb-5">
+                <p class="text-[10px] text-[var(--text-muted)] mb-3 font-bold uppercase tracking-wider">Шаблоны: <span class="lowercase font-normal float-right">нажмите для добав.</span></p>
+                <div class="flex flex-wrap gap-2.5">
+                    <button onclick="playSnd('btn'); setTaskInput('Утренние азкары', '05:30')" class="px-4 py-2 bg-[var(--bg-main)] border border-[var(--card-border)] rounded-2xl text-xs font-bold text-[var(--text-main)] transition-colors shadow-sm active:scale-95"><span class="text-emerald-500 mr-1.5">05:30</span> Утренние азкары</button>
+                    <button onclick="playSnd('btn'); setTaskInput('Школа / Учеба', '08:00')" class="px-4 py-2 bg-[var(--bg-main)] border border-[var(--card-border)] rounded-2xl text-xs font-bold text-[var(--text-main)] transition-colors shadow-sm active:scale-95"><span class="text-emerald-500 mr-1.5">08:00</span> Школа / Учеба</button>
+                    <button onclick="playSnd('btn'); setTaskInput('Работа / Дела', '09:00')" class="px-4 py-2 bg-[var(--bg-main)] border border-[var(--card-border)] rounded-2xl text-xs font-bold text-[var(--text-main)] transition-colors shadow-sm active:scale-95"><span class="text-emerald-500 mr-1.5">09:00</span> Работа / Дела</button>
+                    <button onclick="playSnd('btn'); setTaskInput('Намаз Духа', '08:30')" class="px-4 py-2 bg-[var(--bg-main)] border border-[var(--card-border)] rounded-2xl text-xs font-bold text-[var(--text-main)] transition-colors shadow-sm active:scale-95"><span class="text-emerald-500 mr-1.5">08:30</span> Намаз Духа</button>
+                    <button onclick="playSnd('btn'); setTaskInput('Чтение Корана', '14:00')" class="px-4 py-2 bg-[var(--bg-main)] border border-[var(--card-border)] rounded-2xl text-xs font-bold text-[var(--text-main)] transition-colors shadow-sm active:scale-95"><span class="text-emerald-500 mr-1.5">14:00</span> Чтение Корана</button>
+                </div>
+            </div>
+            <div class="space-y-4 pb-4">
+                <input type="hidden" id="edit-task-id" value="">
+                <div>
+                    <label class="block text-[11px] font-bold uppercase tracking-wider text-[var(--text-muted)] mb-2 ml-1">Название задачи</label>
+                    <input type="text" id="task-title" placeholder="Например: Чтение Корана" class="w-full bg-[var(--bg-main)] border border-[var(--card-border)] rounded-2xl px-4 py-3.5 text-sm font-bold text-[var(--text-main)] outline-none focus:border-emerald-500 transition-colors shadow-inner">
+                </div>
+                <div>
+                    <label class="block text-[11px] font-bold uppercase tracking-wider text-[var(--text-muted)] mb-2 ml-1">Время</label>
+                    <input type="time" id="task-time" class="w-full bg-[var(--bg-main)] border border-[var(--card-border)] rounded-2xl px-4 py-3.5 text-sm font-bold text-[var(--text-main)] outline-none focus:border-emerald-500 transition-colors shadow-inner">
+                </div>
+                <div class="flex gap-3 pt-3">
+                    <button onclick="playSnd('btn'); saveTask()" class="flex-1 green-gradient py-4 rounded-2xl transition shadow-lg text-sm font-black tracking-wide active:scale-95">Сохранить</button>
+                    <button id="btn-delete-task" onclick="playSnd('btn'); deleteEditingTask()" class="hidden bg-red-500/10 border border-red-500/30 text-red-500 font-bold w-14 rounded-2xl transition active:scale-95 flex items-center justify-center text-lg"><i class="fa-solid fa-trash"></i></button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Audio players -->
+    <audio id="prayer-alarm" src="https://upload.wikimedia.org/wikipedia/commons/b/b5/Bicycle_bell_2.mp3" preload="auto"></audio>
+    <audio id="quran-audio" preload="auto"></audio>
+    <audio id="snd-toast" src="https://actions.google.com/sounds/v1/ui/button_click.ogg" preload="auto"></audio>
+    <audio id="snd-xp" src="https://actions.google.com/sounds/v1/ui/pop_up_short.ogg" preload="auto"></audio>
+    <audio id="snd-lvlup" src="https://actions.google.com/sounds/v1/cartoon/magic_chime.ogg" preload="auto"></audio>
+    <audio id="snd-task" src="https://actions.google.com/sounds/v1/cartoon/wood_plank_flicks.ogg" preload="auto"></audio>
+    <audio id="snd-click-nav" src="https://actions.google.com/sounds/v1/ui/navigation_click.ogg" preload="auto"></audio>
+    <audio id="snd-click-btn" src="https://actions.google.com/sounds/v1/ui/ui_button_click.ogg" preload="auto"></audio>
+    <audio id="snd-click-quran" src="https://actions.google.com/sounds/v1/water/water_drop.ogg" preload="auto"></audio>
+
+    <script>
+        // === ИНИЦИАЛИЗАЦИЯ SUPABASE ===
+        const SUPABASE_URL = 'https://kqnbfhqbnqnuovbddovq.supabase.co';
+        const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtxbmJmaHFibnFudW92YmRkb3ZxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTMzNTI2MjIsImV4cCI6MjEwODkyODYyMn0.lIC9-Erm86JijIAUUPSombt8EDt54CjqihVaOTWpuWQ';
+        const dbClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+        // --- ЛОГИКА ---
+        const KNOWLEDGE_LEVELS = ['Начинающий', 'Средний', 'Продвинутый'];
+        
+        let profile = JSON.parse(localStorage.getItem('hafiz_profile') || localStorage.getItem('mday_profile')) || { city: 'Грозный', madhab: 'Шафиитский', knowledge: 'Начинающий', level: 'Студент' };
+        let deviceId = localStorage.getItem('hafiz_device_id') || localStorage.getItem('mday_device_id');
+        if (!deviceId) { deviceId = Math.floor(1000 + Math.random() * 9000).toString(); localStorage.setItem('hafiz_device_id', deviceId); }
+
+        let tasks = JSON.parse(localStorage.getItem('hafiz_tasks') || localStorage.getItem('mday_tasks')) || [];
+        let bookmarks = JSON.parse(localStorage.getItem('hafiz_bookmarks') || localStorage.getItem('mday_bookmarks')) || [];
+        let lastQuranPosition = JSON.parse(localStorage.getItem('hafiz_last_quran') || localStorage.getItem('mday_last_quran')) || null;
+        let isLightMode = true;
+        let activeTab = 'schedule';
+
+        let mainAzkarTapCounts = {};
+        const STORAGE_KEY_COUNTS = 'hafiz_azkar_counts_v66';
+        const STORAGE_KEY_TASBIH = 'hafiz_tasbih_v66';
+
+        let surahsData = []; let currentSurah = null; let audioMode = 'follow'; let currentAyahIndex = -1;
+        let lastBeepTime = null; let activeDayOffset = 0;
+
+        let deferredPrompt; 
+
+        let heartState = JSON.parse(localStorage.getItem('hafiz_heart') || localStorage.getItem('mday_heart')) || { level: 1, xp: 0, date: new Date().toLocaleDateString('ru-RU'), bookmarksToday: 0 };
+        let heartBannerTimeout;
+
+        // --- СПРАВОЧНИК ---
+        let allReferenceAzkarsFromDB = [];
+        let fullAzkarsData = [];
+        let isVerbatimRawMode = false;
+        let azkarFontScale = parseInt(localStorage.getItem('hafiz_ref_font_scale') || localStorage.getItem('mday_ref_font_scale') || '0', 10);
+        let isRefCategoryActive = false;
+        let isImmersiveReading = false;
+
+        // --- СИСТЕМА ПЛАВАЮЩЕЙ КНОПКИ СКРОЛЛА ---
+        let lastScrollY = window.scrollY || 0;
+        let scrollDirection = 'down';
+        let scrollHideTimeout = null;
+
+        const PRAYER_TIMES = [
+            { id: 'fajr', name: 'Фаджр', time: '05:14' },
+            { id: 'dhuhr', name: 'Зухр', time: '12:30' },
+            { id: 'asr', name: 'Аср', time: '14:48' },
+            { id: 'maghrib', name: 'Магриб', time: '16:55' },
+            { id: 'isha', name: 'Иша', time: '18:25' }
+        ];
+
+        window.onload = () => {
+            if (!profile.knowledge || !KNOWLEDGE_LEVELS.includes(profile.knowledge)) profile.knowledge = 'Начинающий';
+            updateDateHeader(); updateProfileDisplays();
+
+            try { mainAzkarTapCounts = JSON.parse(localStorage.getItem(STORAGE_KEY_COUNTS) || localStorage.getItem('mday_azkar_counts_v66')) || {}; } 
+            catch (e) { mainAzkarTapCounts = {}; }
+
+            const hour = new Date().getHours();
+            const selectEl = document.getElementById('azkar-time');
+            const recEl = document.getElementById('azkar-time-recommendation');
+            if (hour >= 4 && hour < 16) {
+                selectEl.value = 'morning'; recEl.textContent = 'Сейчас утро/день • предложены утренние азкары';
+            } else {
+                selectEl.value = 'evening'; recEl.textContent = 'Сейчас вечер/ночь • предложены вечерние азкары';
+            }
+            
+            if (tasks.length === 0) {
+                for(let d=0; d<7; d++) {
+                    PRAYER_TIMES.forEach((p, idx) => {
+                        tasks.push({ id: Date.now()+d*10+idx, title: p.name, time: p.time, completed: false, isPrayer: true, isManual: false, dayOfWeek: d });
+                    });
+                }
+                saveTasks();
+            } else {
+                tasks.forEach(t => {
+                    if (t.isPrayer) {
+                        const pt = PRAYER_TIMES.find(p => p.name === t.title);
+                        if (pt) t.time = pt.time;
+                    }
+                });
+                saveTasks();
+            }
+            loadApp();
+            initScrollButtonHandler();
+        };
+
+        // --- ЛОГИКА СКРОЛЛА ---
+        function isScrollButtonEligible() {
+            if (typeof quranAudio !== 'undefined' && quranAudio && !quranAudio.paused) {
+                return false;
+            }
+            if (activeTab === 'quran') return true;
+            if (activeTab === 'reference' && isRefCategoryActive) return true;
+            return false;
+        }
+
+        function updateScrollButtonUI(direction) {
+            const btn = document.getElementById('global-scroll-btn');
+            const icon = document.getElementById('global-scroll-icon');
+            const text = document.getElementById('global-scroll-text');
+            if (!btn || !icon || !text) return;
+
+            scrollDirection = direction;
+            if (direction === 'up') {
+                icon.className = 'fa-solid fa-arrow-up text-sm transition-transform duration-200';
+                text.textContent = 'Вверх';
+            } else {
+                icon.className = 'fa-solid fa-arrow-down text-sm transition-transform duration-200';
+                text.textContent = 'Вниз';
+            }
+        }
+
+        function enableImmersiveMode() {
+            isImmersiveReading = true;
+        }
+
+        function disableImmersiveMode() {
+            isImmersiveReading = false;
+            document.body.classList.remove('ui-hidden');
+        }
+
+        function initScrollButtonHandler() {
+            window.addEventListener('scroll', () => {
+                const currentY = window.scrollY || document.documentElement.scrollTop;
+                const scrollHeight = document.documentElement.scrollHeight;
+                const clientHeight = document.documentElement.clientHeight;
+                const maxScroll = scrollHeight - clientHeight;
+                const delta = currentY - lastScrollY;
+                
+                if (isImmersiveReading) {
+                    if (delta > 12 && currentY > 80) {
+                        document.body.classList.add('ui-hidden');
+                    } else if (delta < -15 || currentY <= 60) {
+                        document.body.classList.remove('ui-hidden');
+                    }
+                }
+
+                const btn = document.getElementById('global-scroll-btn');
+                if (btn) {
+                    if (!isScrollButtonEligible() || maxScroll < 150) {
+                        btn.classList.remove('active');
+                    } else {
+                        if (currentY <= 20 || currentY >= maxScroll - 20) {
+                            btn.classList.remove('active');
+                        } else if (delta > 8) {
+                            updateScrollButtonUI('down');
+                            btn.classList.add('active');
+                        } else if (delta < -8) {
+                            updateScrollButtonUI('up');
+                            btn.classList.add('active');
+                        }
+
+                        clearTimeout(scrollHideTimeout);
+                        scrollHideTimeout = setTimeout(() => {
+                            btn.classList.remove('active');
+                        }, 2500);
+                    }
+                }
+
+                lastScrollY = currentY;
+            }, { passive: true });
+        }
+
+        function executeScrollAction() {
+            playSnd('btn');
+            const btn = document.getElementById('global-scroll-btn');
+            const scrollHeight = document.documentElement.scrollHeight;
+            const clientHeight = document.documentElement.clientHeight;
+            const maxScroll = scrollHeight - clientHeight;
+
+            if (scrollDirection === 'up') {
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+                setTimeout(() => {
+                    updateScrollButtonUI('down');
+                    if (window.scrollY <= 60 && btn) btn.classList.remove('active');
+                }, 500);
+            } else {
+                window.scrollTo({ top: maxScroll, behavior: 'smooth' });
+                setTimeout(() => {
+                    updateScrollButtonUI('up');
+                }, 500);
+            }
+        }
+
+        function resetScrollButtonState() {
+            const btn = document.getElementById('global-scroll-btn');
+            if (btn) btn.classList.remove('active');
+            lastScrollY = window.scrollY || 0;
+        }
+
+        function resetMainAzkarCounters() {
+            mainAzkarTapCounts = {}; 
+            localStorage.removeItem(STORAGE_KEY_COUNTS);
+            renderAzkar(); 
+            showToast('Счётчики азкаров сброшены');
+        }
+        
+        function getRequiredXP(lvl) { return Math.floor(100 * Math.pow(1.3, lvl - 1)); }
+
+        function gainXP(amount) {
+            const today = new Date().toLocaleDateString('ru-RU');
+            if (heartState.date !== today) heartState = { level: 1, xp: 0, date: today, bookmarksToday: 0 };
+            
+            heartState.xp += amount;
+            let reqXP = getRequiredXP(heartState.level);
+            let leveledUp = false;
+
+            while (heartState.xp >= reqXP) { heartState.xp -= reqXP; heartState.level++; reqXP = getRequiredXP(heartState.level); leveledUp = true; }
+            localStorage.setItem('hafiz_heart', JSON.stringify(heartState));
+            
+            if (leveledUp) { const s = document.getElementById('snd-lvlup'); s.currentTime = 0; s.play().catch(()=>{}); } 
+            else { const s = document.getElementById('snd-xp'); s.currentTime = 0; s.play().catch(()=>{}); }
+
+            document.getElementById('heart-level-text').textContent = 'Уровень ' + heartState.level;
+            document.getElementById('heart-xp-text').textContent = heartState.xp + ' / ' + reqXP + ' XP';
+            document.getElementById('heart-xp-gained').textContent = '+' + amount + ' XP';
+            
+            let percent = Math.min(100, Math.max(0, (heartState.xp / reqXP) * 100));
+            document.getElementById('heart-progress-fill').style.width = percent + '%';
+
+            const banner = document.getElementById('heart-banner');
+            banner.classList.remove('-translate-y-32', 'opacity-0'); banner.classList.add('translate-y-0', 'opacity-100');
+            
+            clearTimeout(heartBannerTimeout);
+            heartBannerTimeout = setTimeout(() => {
+                banner.classList.remove('translate-y-0', 'opacity-100'); banner.classList.add('-translate-y-32', 'opacity-0');
+            }, 3500);
+        }
+
+        function checkHeartReset() {
+            const today = new Date().toLocaleDateString('ru-RU');
+            if (heartState.date !== today) {
+                heartState = { level: 1, xp: 0, date: today, bookmarksToday: 0 };
+                localStorage.setItem('hafiz_heart', JSON.stringify(heartState));
+            }
+        }
+
+        function loadApp() {
+            checkHeartReset(); renderDaysTabs(); renderTasks(); startClock(); fetchSurahs();
+            generateHadith(); renderAzkar(); loadTasbihState(); checkQuranPrompt(); updateBookmarksBadge();
+            preloadReferenceAzkars();
+        }
+
+        function playSnd(type) {
+            try {
+                let id = 'snd-click-btn'; if (type === 'nav') id = 'snd-click-nav'; if (type === 'quran') id = 'snd-click-quran';
+                const s = document.getElementById(id); if (s) { s.currentTime = 0; s.play().catch(()=>{}); }
+            } catch(e) {}
+        }
+
+        function showToast(msg) {
+            const toast = document.getElementById('toast-box'); document.getElementById('toast-text').textContent = msg;
+            const tSnd = document.getElementById('snd-toast'); tSnd.currentTime = 0; tSnd.play().catch(()=>{});
+            toast.style.display = 'flex'; toast.classList.remove('-translate-y-20', 'opacity-0'); toast.classList.add('translate-y-0', 'opacity-100');
+            setTimeout(() => { toast.classList.remove('translate-y-0', 'opacity-100'); toast.classList.add('-translate-y-20', 'opacity-0'); setTimeout(() => toast.style.display='none', 300); }, 2500);
+        }
+
+        function openModal(id) { document.getElementById(id).style.display = 'flex'; }
+        function closeModal(id) { document.getElementById(id).style.display = 'none'; }
+
+        function toggleTestTheme() {
+            isLightMode = !isLightMode;
+            const icon = document.getElementById('theme-icon');
+            const metaTheme = document.getElementById('meta-theme-color');
+            if (isLightMode) {
+                document.documentElement.classList.add('light-mode');
+                if(icon) icon.className = 'fa-solid fa-moon text-xs';
+                if (metaTheme) metaTheme.content = '#F4F7FA';
+                showToast('Светлая тема');
+            } else {
+                document.documentElement.classList.remove('light-mode');
+                if(icon) icon.className = 'fa-solid fa-sun text-xs';
+                if (metaTheme) metaTheme.content = '#0B1120';
+                showToast('Тёмная тема');
+            }
+        }
+
+        function updateDateHeader() { document.getElementById('header-date').textContent = new Date().toLocaleDateString('ru-RU', { weekday: 'long', day: 'numeric', month: 'long' }); }
+        function updateProfileDisplays() { document.getElementById('schedule-city-badge').textContent = profile.city; document.getElementById('hadith-badge').textContent = profile.knowledge; document.getElementById('level-btn-label').textContent = profile.knowledge; }
+
+        function switchTab(tab) {
+            activeTab = tab;
+            resetScrollButtonState();
+            disableImmersiveMode();
+
+            ['schedule', 'quran', 'today', 'reference'].forEach(t => {
+                document.getElementById(`tab-${t}`).classList.add('hidden');
+                document.getElementById(`nav-${t}`).className = 'flex-1 flex flex-col items-center py-1 text-[var(--text-muted)] hover:text-emerald-500 transition';
+                document.getElementById(`nav-${t}`).querySelector('div').className = 'w-10 h-8 flex items-center justify-center rounded-xl mb-1 transition-all';
+            });
+            document.getElementById(`tab-${tab}`).classList.remove('hidden');
+            document.getElementById(`nav-${tab}`).className = 'flex-1 flex flex-col items-center py-1 text-emerald-500 transition';
+            document.getElementById(`nav-${tab}`).querySelector('div').className = 'w-12 h-8 bg-emerald-500/10 flex items-center justify-center rounded-xl mb-1 transition-all';
+            
+            const bookmarksBtn = document.getElementById('header-bookmarks-btn');
+            if (tab === 'quran') { bookmarksBtn.classList.remove('hidden'); bookmarksBtn.classList.add('flex'); } 
+            else { bookmarksBtn.classList.remove('flex'); bookmarksBtn.classList.add('hidden'); }
+            
+            if(tab === 'reference') {
+                closeReferenceCategory();
+            }
+            window.scrollTo(0,0);
+        }
+        
+        function cycleKnowledgeLevel() {
+            const idx = KNOWLEDGE_LEVELS.indexOf(profile.knowledge);
+            profile.knowledge = KNOWLEDGE_LEVELS[(idx + 1) % KNOWLEDGE_LEVELS.length];
+            localStorage.setItem('hafiz_profile', JSON.stringify(profile));
+            updateProfileDisplays(); generateHadith(); renderAzkar();
+            showToast(`Уровень знаний: ${profile.knowledge}`);
+        }
+
+        // === SUPABASE: ПРЕДЗАГРУЗКА И ЛОГИКА СПРАВОЧНИКА ===
+        async function preloadReferenceAzkars() {
+            const statusEl = document.getElementById('ref-preload-status');
+            
+            try {
+                const { data, error } = await dbClient
+                    .from('reference_azkars')
+                    .select('*')
+                    .order('id', { ascending: true });
+                    
+                if (error) throw error;
+                
+                allReferenceAzkarsFromDB = data.map(item => {
+                    const lines = item.raw_content.split('\n');
+                    const titleLine = item.title;
+                    const bodyLines = lines.slice(1);
+                    
+                    const arabicMatches = [];
+                    bodyLines.forEach(line => {
+                        if (line.includes('Арабский:')) {
+                            const afterLabel = line.split('Арабский:')[1];
+                            const cleanArabicForTTS = afterLabel.replace(/\([А-Яа-яЁё\s\-́‘’]+\)/g, '').trim();
+                            if (cleanArabicForTTS) arabicMatches.push(cleanArabicForTTS);
+                        }
+                    });
+                    
+                    return {
+                        id: item.id,
+                        rawBlock: item.raw_content,
+                        titleLine: titleLine,
+                        bodyLines: bodyLines,
+                        arabicForTTS: arabicMatches
+                    };
+                });
+                
+                statusEl.innerHTML = '<i class="fa-solid fa-check text-emerald-500 mr-1"></i> База загружена';
+                setTimeout(() => statusEl.classList.add('hidden'), 2000);
+                
+            } catch (err) {
+                console.error('Ошибка загрузки справочника:', err);
+                statusEl.innerHTML = '<span class="text-red-500"><i class="fa-solid fa-triangle-exclamation mr-1"></i> Ошибка загрузки: ' + err.message + '</span>';
+            }
+        }
+
+        function openReferenceCategory(part) {
+            playSnd('btn');
+            
+            if (allReferenceAzkarsFromDB.length === 0) {
+                showToast('Подождите, база азкаров загружается...');
+                return;
+            }
+            
+            isRefCategoryActive = true;
+            resetScrollButtonState();
+            enableImmersiveMode();
+
+            document.getElementById('ref-categories').classList.add('hidden');
+            document.getElementById('ref-list-view').classList.remove('hidden');
+            document.getElementById('azkar-search-input').value = '';
+            
+            if (part === 1) {
+                document.getElementById('ref-list-title').innerHTML = '<i class="fa-solid fa-book"></i> Часть 1 (1-23)';
+                fullAzkarsData = allReferenceAzkarsFromDB.slice(0, 23);
+            } else {
+                document.getElementById('ref-list-title').innerHTML = '<i class="fa-solid fa-book-open"></i> Часть 2 (Новые)';
+                fullAzkarsData = allReferenceAzkarsFromDB.slice(23);
+            }
+            
+            renderFullAzkarsList();
+            window.scrollTo(0,0);
+        }
+
+        function closeReferenceCategory() {
+            isRefCategoryActive = false;
+            resetScrollButtonState();
+            disableImmersiveMode();
+            document.getElementById('ref-list-view').classList.add('hidden');
+            document.getElementById('ref-categories').classList.remove('hidden');
+        }
+
+        function adjustAzkarFontSize(delta) {
+            azkarFontScale = Math.max(-1, Math.min(3, azkarFontScale + delta));
+            localStorage.setItem('hafiz_ref_font_scale', String(azkarFontScale)); renderFullAzkarsList();
+        }
+
+        function toggleVerbatimRawMode() {
+            isVerbatimRawMode = !isVerbatimRawMode;
+            const btn = document.getElementById('btn-raw-mode');
+            if (isVerbatimRawMode) { btn.classList.add('border-emerald-500', 'text-emerald-500'); showToast('Режим 100% исходного текста'); } 
+            else { btn.classList.remove('border-emerald-500', 'text-emerald-500'); showToast('Карточный вид'); }
+            renderFullAzkarsList();
+        }
+
+        function filterFullAzkars() { renderFullAzkarsList(); }
+
+        function createFormattedLineElement(lineText) {
+            const wrapper = document.createElement('div'); wrapper.className = 'selectable-text leading-relaxed font-medium';
+            const arSizeClasses = ['text-2xl', 'text-3xl', 'text-4xl', 'text-5xl', 'text-5xl'];
+            const ruSizeClasses = ['text-[12px]', 'text-sm', 'text-base', 'text-lg', 'text-xl'];
+            const arClass = arSizeClasses[azkarFontScale + 1] || 'text-3xl';
+            const ruClass = ruSizeClasses[azkarFontScale + 1] || 'text-sm';
+
+            if (lineText.includes('Арабский:')) {
+                const idx = lineText.indexOf('Арабский:');
+                const beforeArabic = lineText.slice(0, idx); const afterLabel = lineText.slice(idx).slice('Арабский:'.length);
+                if (beforeArabic) {
+                    const preP = document.createElement('p'); preP.className = `${ruClass} text-[var(--text-main)] mb-2 whitespace-pre-wrap font-semibold`; preP.textContent = beforeArabic; wrapper.appendChild(preP);
+                }
+                const arBox = document.createElement('div'); arBox.className = 'bg-[var(--bg-main)] border border-[var(--card-border)] rounded-2xl p-4 my-2.5 shadow-inner transition-colors';
+                const labelSpan = document.createElement('span'); labelSpan.className = 'text-[11px] font-bold uppercase tracking-wider text-[var(--text-muted)] block mb-2'; labelSpan.textContent = 'Арабский:';
+                const arabicSpan = document.createElement('p'); arabicSpan.className = `arabic-text ${arClass} leading-[2.2] text-right text-emerald-500 whitespace-pre-wrap font-bold`; arabicSpan.dir = 'rtl';
+                arabicSpan.textContent = afterLabel.startsWith(' ') ? afterLabel.slice(1) : afterLabel;
+                arBox.appendChild(labelSpan); arBox.appendChild(arabicSpan); wrapper.appendChild(arBox);
+            } else if (lineText.startsWith('Транскрипция:')) {
+                wrapper.className = `selectable-text ${ruClass} text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded-2xl px-4 py-3 mt-2 whitespace-pre-wrap font-semibold`; wrapper.textContent = lineText;
+            } else {
+                wrapper.className = `selectable-text ${ruClass} text-[var(--text-main)] whitespace-pre-wrap`; wrapper.textContent = lineText;
+            }
+            return wrapper;
+        }
+
+        function renderFullAzkarsList() {
+            const container = document.getElementById('full-azkars-list-container'); container.innerHTML = '';
+            const query = (document.getElementById('azkar-search-input').value || '').trim().toLowerCase();
+            let itemsToRender = fullAzkarsData;
+            
+            if (query) itemsToRender = fullAzkarsData.filter(item => item.rawBlock.toLowerCase().includes(query));
+            if (itemsToRender.length === 0) { 
+                const emptyMsg = query ? `Ничего не найдено по запросу «${query}»` : 'В этом разделе пока нет азкаров.';
+                container.innerHTML = `<div class="text-center py-12 text-[var(--text-muted)] text-sm font-medium">${emptyMsg}</div>`; 
+                return; 
+            }
+
+            itemsToRender.forEach(item => {
+                const card = document.createElement('div');
+                card.className = 'card-base p-5 mb-5';
+                
+                const headerDiv = document.createElement('div'); headerDiv.className = 'flex items-start justify-between gap-3 pb-4 mb-4 border-b border-[var(--card-border)]';
+                const titleH3 = document.createElement('h3'); titleH3.className = 'selectable-text text-base font-black text-emerald-500 leading-snug flex-1 pr-2'; titleH3.textContent = item.titleLine;
+                const actionsDiv = document.createElement('div'); actionsDiv.className = 'flex items-center gap-2 shrink-0';
+
+                item.arabicForTTS.forEach((arPhrase, phraseIdx) => {
+                    const audioBtn = document.createElement('button');
+                    audioBtn.className = 'azkar-audio-btn h-10 px-3.5 rounded-2xl green-gradient text-white flex items-center justify-center gap-1.5 text-xs font-bold shadow-md active:scale-95 transition';
+                    if (item.arabicForTTS.length > 1) audioBtn.setAttribute('data-phrase-idx', String(phraseIdx + 1));
+                    audioBtn.innerHTML = `<i class="fa-solid fa-volume-up text-sm pointer-events-none"></i>${item.arabicForTTS.length > 1 ? `<span>${phraseIdx + 1}</span>` : ''}`;
+                    audioBtn.onclick = () => speakAzkar(arPhrase, audioBtn);
+                    actionsDiv.appendChild(audioBtn);
+                });
+
+                headerDiv.appendChild(titleH3); headerDiv.appendChild(actionsDiv); card.appendChild(headerDiv);
+
+                if (isVerbatimRawMode) {
+                    const pre = document.createElement('pre'); pre.className = 'selectable-text text-sm font-sans font-medium whitespace-pre-wrap leading-relaxed text-[var(--text-main)] bg-[var(--bg-main)] p-4 rounded-2xl border border-[var(--card-border)] shadow-inner'; pre.textContent = item.rawBlock; card.appendChild(pre);
+                } else {
+                    const bodyContainer = document.createElement('div'); bodyContainer.className = 'space-y-3';
+                    item.bodyLines.forEach(line => { bodyContainer.appendChild(createFormattedLineElement(line)); });
+                    card.appendChild(bodyContainer);
+                }
+                container.appendChild(card);
+            });
+        }
+
+        function renderDaysTabs() {
+            const container = document.getElementById('days-tabs'); container.innerHTML = ''; const daysNames = ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'];
+            for (let i = 0; i < 7; i++) {
+                const targetDay = new Date(); targetDay.setDate(targetDay.getDate() + i);
+                const el = document.createElement('button');
+                el.className = `px-4 py-2 rounded-2xl border flex-1 text-center shrink-0 transition font-bold shadow-sm ${i === activeDayOffset ? 'green-gradient border-transparent text-white' : 'bg-[var(--bg-main)] border-[var(--card-border)] text-[var(--text-muted)] hover:text-[var(--text-main)] hover:bg-[var(--card-bg)]'}`;
+                el.textContent = i === 0 ? 'Сегодня' : i === 1 ? 'Завтра' : daysNames[targetDay.getDay()];
+                el.onclick = () => { activeDayOffset = i; renderDaysTabs(); renderTasks(); };
+                container.appendChild(el);
+            }
+        }
+
+        function getTargetDayOfWeek() { const d = new Date(); d.setDate(d.getDate() + activeDayOffset); return d.getDay(); }
+
+        function renderTasks() {
+            const container = document.getElementById('tasks-container'); container.innerHTML = '';
+            const targetD = getTargetDayOfWeek();
+            let dayTasks = tasks.filter(t => t.dayOfWeek === targetD).sort((a, b) => (a.time || '24:00').localeCompare(b.time || '24:00'));
+            let comp = 0;
+            dayTasks.forEach(t => {
+                if(t.completed) comp++;
+                const el = document.createElement('div');
+                el.className = `task-card ${t.isPrayer ? 'prayer-card' : ''} ${t.completed ? 'completed-task' : ''}`;
+                
+                let pressTimer;
+                el.onmousedown = el.ontouchstart = () => { pressTimer = setTimeout(() => openEditTask(t.id), 600); };
+                el.onmouseup = el.ontouchend = () => clearTimeout(pressTimer); el.onmouseleave = el.ontouchcancel = () => clearTimeout(pressTimer);
+                
+                let timeHtml = t.time ? `<div class="task-time">${t.time}</div>` : '';
+                let subtitle = t.isPrayer ? 'Обязательный намаз' : 'Задача • удерживайте для изм.';
+                
+                el.innerHTML = `
+                    <div class="flex items-center gap-4 flex-1" onclick="playSnd('btn'); toggleTask(${t.id}); event.stopPropagation();">
+                        <div class="shrink-0 flex items-center justify-center">${timeHtml}</div>
+                        <div class="flex-1">
+                            <span class="task-title block">${t.title}</span>
+                            <span class="task-subtitle block">${subtitle}</span>
+                        </div>
+                        <div class="shrink-0 pl-2">
+                            <div class="check-circle"><i class="fa-solid fa-check text-[12px] ${t.completed ? 'opacity-100' : 'opacity-0'} transition-opacity"></i></div>
+                        </div>
+                    </div>
+                `;
+                container.appendChild(el);
+            });
+            const percent = dayTasks.length === 0 ? 0 : Math.round((comp / dayTasks.length) * 100);
+            document.getElementById('progress-bar-fill').style.width = `${percent}%`; document.getElementById('progress-percent').textContent = `${percent}%`;
+        }
+
+        function toggleTask(id) { 
+            const t = tasks.find(x => x.id === id); 
+            if(t) { 
+                t.completed = !t.completed; 
+                if (t.completed) {
+                    const lowerTitle = t.title.toLowerCase();
+                    if (t.isPrayer || lowerTitle.includes('медресе') || lowerTitle.includes('коран') || lowerTitle.includes('намаз') || lowerTitle.includes('азкар')) gainXP(30);
+                    else { const snd = document.getElementById('snd-task'); snd.currentTime = 0; snd.play().catch(()=>{}); }
+                }
+                saveTasks(); renderTasks(); 
+            } 
+        }
+        function saveTasks() { localStorage.setItem('hafiz_tasks', JSON.stringify(tasks)); }
+
+        function openAddTaskModal() {
+            document.getElementById('modal-task-header').textContent = 'Добавить задачу';
+            document.getElementById('edit-task-id').value = ''; 
+            document.getElementById('task-title').value = ''; 
+            document.getElementById('task-title').readOnly = false;
+            document.getElementById('task-title').classList.remove('opacity-50', 'pointer-events-none');
+            document.getElementById('task-time').value = '';
+            document.getElementById('btn-delete-task').classList.add('hidden'); 
+            document.getElementById('task-templates-section').classList.remove('hidden');
+            openModal('add-task-modal');
+        }
+        
+        function openEditTask(id) {
+            const t = tasks.find(x => x.id === id);
+            if(t) {
+                document.getElementById('modal-task-header').textContent = 'Изменить задачу';
+                document.getElementById('edit-task-id').value = t.id; document.getElementById('task-title').value = t.title; document.getElementById('task-time').value = t.time || '';
+                if(t.isPrayer) {
+                    document.getElementById('task-title').readOnly = true; document.getElementById('task-title').classList.add('opacity-50', 'pointer-events-none');
+                    document.getElementById('btn-delete-task').classList.add('hidden'); document.getElementById('task-templates-section').classList.add('hidden');
+                } else {
+                    document.getElementById('task-title').readOnly = false; document.getElementById('task-title').classList.remove('opacity-50', 'pointer-events-none');
+                    document.getElementById('btn-delete-task').classList.remove('hidden'); document.getElementById('task-templates-section').classList.remove('hidden');
+                }
+                openModal('add-task-modal');
+            }
+        }
+        function setTaskInput(title, time) { document.getElementById('task-title').value = title; document.getElementById('task-time').value = time; }
+        
+        function saveTask() {
+            const id = document.getElementById('edit-task-id').value; const title = document.getElementById('task-title').value.trim(); const time = document.getElementById('task-time').value;
+            if(!title) return showToast('Введите название');
+            if(id) { const t = tasks.find(x => x.id == id); if(t) { t.title = title; t.time = time; } }
+            else { tasks.push({ id: Date.now(), title, time, completed: false, isPrayer: false, isManual: true, dayOfWeek: getTargetDayOfWeek() }); }
+            saveTasks(); renderTasks(); closeModal('add-task-modal'); showToast('Сохранено');
+        }
+        
+        function deleteEditingTask() {
+            const id = document.getElementById('edit-task-id').value;
+            if(id) { tasks = tasks.filter(x => x.id != id); saveTasks(); renderTasks(); closeModal('add-task-modal'); showToast('Удалено'); }
+        }
+
+        function startClock() { setInterval(updateTimer, 1000); updateTimer(); }
+        function updateTimer() {
+            const now = new Date(); const currentTimeStr = `${now.getHours().toString().padStart(2,'0')}:${now.getMinutes().toString().padStart(2,'0')}`;
+            let nextPrayer = PRAYER_TIMES[0]; let currentPrayer = PRAYER_TIMES[PRAYER_TIMES.length-1];
+            for (let i = 0; i < PRAYER_TIMES.length; i++) { if (PRAYER_TIMES[i].time > currentTimeStr) { nextPrayer = PRAYER_TIMES[i]; currentPrayer = i > 0 ? PRAYER_TIMES[i-1] : PRAYER_TIMES[PRAYER_TIMES.length-1]; break; } }
+            document.getElementById('current-prayer-name').textContent = currentPrayer.name; document.getElementById('next-prayer-name').textContent = nextPrayer.name;
+            
+            const [nextH, nextM] = nextPrayer.time.split(':').map(Number);
+            let nextDate = new Date(); nextDate.setHours(nextH, nextM, 0, 0);
+            if (nextDate <= now) nextDate.setDate(nextDate.getDate() + 1);
+            const diff = nextDate - now;
+            const h = Math.floor(diff / (1000 * 60 * 60)); const m = Math.floor((diff / (1000 * 60)) % 60); const s = Math.floor((diff / 1000) % 60);
+            document.getElementById('prayer-countdown').textContent = `${h.toString().padStart(2,'0')}:${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}`;
+
+            if (currentTimeStr === nextPrayer.time && now.getSeconds() < 5 && lastBeepTime !== currentTimeStr) {
+                document.getElementById('prayer-alarm').play().catch(e=>{});
+                document.getElementById('alarm-modal-title').textContent = nextPrayer.name; document.getElementById('alarm-modal-time').textContent = nextPrayer.time;
+                openModal('alarm-modal'); lastBeepTime = currentTimeStr;
+            }
+            
+            const miniGrid = document.getElementById('prayers-mini-grid');
+            if (miniGrid.children.length === 0) {
+                PRAYER_TIMES.forEach(p => {
+                    const el = document.createElement('div'); el.id = `pr-${p.id}`;
+                    el.innerHTML = `<p class="text-[10px] uppercase font-bold text-slate-400 opacity-90">${p.name}</p><p class="text-sm font-bold mt-1 text-white">${p.time}</p>`;
+                    miniGrid.appendChild(el);
+                });
+            }
+        }
+        function stopAlarmModal() { closeModal('alarm-modal'); }
+
+        // === SUPABASE: ЗАГРУЗКА ХАДИСОВ ИЗ ОБЛАКА ===
+        async function generateHadith() {
+            const level = profile.knowledge || 'Средний'; 
+            document.getElementById('hadith-badge').textContent = level;
+            
+            const textEl = document.getElementById('daily-hadith-text');
+            textEl.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin text-emerald-500 mr-2"></i>Загрузка...';
+            textEl.classList.add('opacity-60');
+            document.getElementById('daily-hadith-source').textContent = '';
+            
+            try {
+                const { data, error } = await dbClient
+                    .from('hadiths')
+                    .select('*')
+                    .eq('knowledge_level', level);
+                    
+                if (error) throw error;
+                
+                textEl.classList.remove('opacity-60');
+                if (data && data.length > 0) {
+                    const randomItem = data[Math.floor(Math.random() * data.length)];
+                    textEl.textContent = randomItem.content; 
+                    document.getElementById('daily-hadith-source').textContent = '(' + randomItem.source + ')';
+                } else {
+                    textEl.textContent = 'Хадисы для уровня «' + level + '» не найдены в облаке.';
+                }
+            } catch (err) {
+                console.error('Ошибка загрузки хадисов:', err);
+                textEl.classList.remove('opacity-60');
+                textEl.textContent = 'Ошибка (Хадисы): ' + err.message;
+            }
+        }
+
+        // === SUPABASE: ЗАГРУЗКА ЕЖЕДНЕВНЫХ АЗКАРОВ ИЗ ОБЛАКА ===
+        async function renderAzkar() {
+            const container = document.getElementById('azkar-container'); 
+            const time = document.getElementById('azkar-time').value; 
+            const level = profile.knowledge || 'Средний';
+            document.getElementById('azkar-count-badge').textContent = `(${level})`;
+            
+            container.innerHTML = `<div class="text-center py-8 text-emerald-500 font-bold text-xs"><i class="fa-solid fa-circle-notch fa-spin text-2xl mb-3"></i><br>Загрузка азкаров (${level})...</div>`;
+            
+            try {
+                const { data, error } = await dbClient
+                    .from('daily_azkars')
+                    .select('*')
+                    .eq('knowledge_level', level)
+                    .eq('time_of_day', time)
+                    .order('id', { ascending: true });
+                    
+                if (error) throw error;
+                
+                container.innerHTML = '';
+                
+                if (!data || data.length === 0) {
+                    container.innerHTML = `<div class="text-center py-6 text-[var(--text-muted)] font-medium text-xs">Нет данных азкаров для уровня «${level}».</div>`;
+                    return;
+                }
+
+                data.forEach((az) => {
+                    const key = `${level}_${time}_${az.id}`;
+                    const currentTap = mainAzkarTapCounts[key] || 0; 
+                    const isDone = currentTap >= az.target_count;
+                    const el = document.createElement('div');
+                    el.className = `card-base p-4 flex justify-between items-center transition-all cursor-pointer mb-3.5 ${isDone ? 'border-emerald-500/60 bg-emerald-500/10' : ''}`;
+
+                    const textDiv = document.createElement('div'); textDiv.className = 'flex-1 pr-4';
+                    textDiv.onclick = () => {
+                        if (mainAzkarTapCounts[key] === undefined) mainAzkarTapCounts[key] = 0;
+                        if (mainAzkarTapCounts[key] < az.target_count) {
+                            mainAzkarTapCounts[key]++; gainXP(2); if (navigator.vibrate) navigator.vibrate(15);
+                            localStorage.setItem(STORAGE_KEY_COUNTS, JSON.stringify(mainAzkarTapCounts)); renderAzkar();
+                        }
+                    };
+                    textDiv.innerHTML = `
+                        <p class="arabic-text text-2xl mb-2.5 leading-relaxed text-emerald-500 font-bold" dir="rtl">${az.arabic}</p>
+                        <div class="flex items-center justify-between gap-2 mt-2">
+                            <p class="text-[11px] font-medium text-[var(--text-muted)]">${az.translation} <span class="font-bold text-[var(--text-main)]">(${az.count_label})</span>.</p>
+                            <span class="text-[11px] font-bold px-2.5 py-1 rounded-xl transition-colors ${isDone ? 'bg-emerald-500/20 text-emerald-500 border border-emerald-500/40' : 'bg-[var(--bg-main)] text-[var(--text-muted)] border border-[var(--card-border)]'}">${currentTap} / ${az.target_count}</span>
+                        </div>
+                    `;
+
+                    const btn = document.createElement('button');
+                    btn.className = 'azkar-audio-btn w-12 h-12 rounded-2xl bg-[var(--bg-main)] border border-[var(--card-border)] text-emerald-500 flex items-center justify-center shrink-0 transition shadow-sm hover:scale-105 active:scale-95';
+                    btn.innerHTML = '<i class="fa-solid fa-volume-up text-sm pointer-events-none"></i>';
+                    btn.onclick = (e) => { e.stopPropagation(); speakAzkar(az.arabic, btn); };
+                    el.appendChild(textDiv); el.appendChild(btn); container.appendChild(el);
+                });
+            } catch (err) {
+                console.error('Ошибка загрузки азкаров:', err);
+                container.innerHTML = '<div class="text-center py-6 text-red-500 font-bold text-xs">Ошибка (Азкары): ' + err.message + '</div>';
+            }
+        }
+
+        let currentActiveAudio = null;
+        function resetAudioBtn(btn) { 
+            const badge = btn.getAttribute('data-phrase-idx');
+            btn.className = 'azkar-audio-btn w-12 h-12 rounded-2xl bg-[var(--bg-main)] border border-[var(--card-border)] text-emerald-500 flex items-center justify-center shrink-0 transition shadow-sm hover:scale-105 active:scale-95';
+            btn.innerHTML = `<i class="fa-solid fa-volume-up text-sm pointer-events-none"></i>${badge ? `<span>${badge}</span>` : ''}`;
+        }
+        function resetAllAudioBtns() { document.querySelectorAll('.azkar-audio-btn').forEach(btn => resetAudioBtn(btn)); }
+
+        function playExpressiveFallbackAudio(text, btnElement) {
+            const url = `https://translate.google.com/translate_tts?ie=UTF-8&tl=ar&client=tw-ob&q=${encodeURIComponent(text.substring(0, 200))}`;
+            const audio = new Audio(url);
+            audio.playbackRate = 0.8; 
+            currentActiveAudio = audio;
+            
+            let isResolved = false;
+            const resolveBtn = () => { if(!isResolved) { isResolved = true; resetAudioBtn(btnElement); } };
+
+            audio.onplaying = () => { btnElement.innerHTML = '<i class="fa-solid fa-volume-high text-sm pointer-events-none text-white"></i>'; };
+            audio.onended = resolveBtn;
+            audio.onerror = () => { resolveBtn(); showToast('Ошибка при загрузке аудио'); };
+            
+            audio.play().catch((err) => { 
+                console.error('Audio play error:', err);
+                resolveBtn(); 
+                showToast('Воспроизведение заблокировано'); 
+            });
+            
+            setTimeout(() => { if (audio.paused && !isResolved) { audio.src = ''; resolveBtn(); } }, 5000);
+        }
+
+        function speakAzkar(text, btnElement) {
+            if (!text) return;
+            resetAllAudioBtns();
+            
+            if (currentActiveAudio) { 
+                if (currentActiveAudio instanceof Audio) {
+                    currentActiveAudio.pause();
+                    currentActiveAudio.src = '';
+                } else if ('speechSynthesis' in window) {
+                    window.speechSynthesis.cancel(); 
+                }
+                currentActiveAudio = null; 
+            }
+
+            btnElement.className = 'azkar-audio-btn w-12 h-12 rounded-2xl green-gradient flex items-center justify-center shrink-0 transition shadow-lg hover:scale-105 active:scale-95';
+            btnElement.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin text-sm pointer-events-none text-white"></i>';
+
+            let formattedTajweedText = text.replace(/([،؛.؟!])/g, '$1 , ').replace(/(والذي|الذي|اللاتي|الذين|وما|وإذا|فإن|ولئن|بِسْمِ)/g, ' $1 ');
+
+            let useFallback = false;
+            if ('speechSynthesis' in window) {
+                try {
+                    window.speechSynthesis.cancel(); 
+                    const utterance = new SpeechSynthesisUtterance(formattedTajweedText);
+                    utterance.lang = 'ar-SA'; 
+                    utterance.rate = 0.7; 
+                    
+                    let started = false;
+                    utterance.onstart = () => { 
+                        started = true; 
+                        btnElement.innerHTML = '<i class="fa-solid fa-volume-high text-sm pointer-events-none text-white"></i>'; 
+                    };
+                    utterance.onend = () => resetAudioBtn(btnElement);
+                    utterance.onerror = () => { 
+                        if (!started) playExpressiveFallbackAudio(text, btnElement); 
+                        else resetAudioBtn(btnElement);
+                    };
+                    
+                    window.speechSynthesis.speak(utterance); 
+                    currentActiveAudio = utterance;
+                    
+                    setTimeout(() => { 
+                        if (!started && currentActiveAudio === utterance) { 
+                            window.speechSynthesis.cancel(); 
+                            playExpressiveFallbackAudio(text, btnElement); 
+                        } 
+                    }, 500); 
+                    return;
+                } catch (e) { useFallback = true; }
+            } else { useFallback = true; }
+            
+            if (useFallback) playExpressiveFallbackAudio(text, btnElement);
+        }
+
+        const tasbihPhrases = [ { ar: 'سُبْحَانَ ٱللَّٰهِ', ru: 'Субханаллах (Пречист Аллах)' }, { ar: 'ٱلْحَمْدُ لِلَّٰهِ', ru: 'Альхамдулиллях (Хвала Аллаху)' }, { ar: 'ٱللَّٰهُ أَكْبَرُ', ru: 'Аллаху Акбар (Аллах Велик)' } ];
+        const TASBIH_TARGETS = [33, 99, 100]; let tasbihTarget = 33; let tasbihCount = 0; let tasbihTotal = 0; let tasbihPhase = 0; const TASBIH_CIRCUMFERENCE = 283;
+
+        function loadTasbihState() {
+            try { const saved = JSON.parse(localStorage.getItem(STORAGE_KEY_TASBIH) || localStorage.getItem('mday_tasbih_v66')); if (saved) { tasbihCount = saved.count || 0; tasbihTotal = saved.total || 0; tasbihPhase = saved.phase || 0; tasbihTarget = saved.target || 33; } } catch (e) {}
+            updateTasbihUI();
+        }
+        function saveTasbihState() { localStorage.setItem(STORAGE_KEY_TASBIH, JSON.stringify({ count: tasbihCount, total: tasbihTotal, phase: tasbihPhase, target: tasbihTarget })); }
+
+        function cycleTasbihTarget() { const idx = TASBIH_TARGETS.indexOf(tasbihTarget); tasbihTarget = TASBIH_TARGETS[(idx + 1) % TASBIH_TARGETS.length]; tasbihCount = 0; updateTasbihUI(); saveTasbihState(); showToast(`Цель тасбиха: ${tasbihTarget}`); }
+        function updateTasbihUI() {
+            const phrase = tasbihPhrases[tasbihPhase % tasbihPhrases.length];
+            document.getElementById('tasbih-arabic').textContent = phrase.ar; document.getElementById('tasbih-translation').textContent = phrase.ru;
+            document.getElementById('tasbih-count').textContent = tasbihCount; document.getElementById('tasbih-target-Display').textContent = `/ ${tasbihTarget}`;
+            document.getElementById('tasbih-target-btn').textContent = `Цель: ${tasbihTarget}`; document.getElementById('tasbih-total-badge').textContent = `Всего: ${tasbihTotal}`;
+            const offset = TASBIH_CIRCUMFERENCE - (tasbihCount / tasbihTarget) * TASBIH_CIRCUMFERENCE; document.getElementById('tasbih-progress').style.strokeDashoffset = offset;
+        }
+
+        function incrementTasbih() {
+            tasbihCount++; tasbihTotal++; gainXP(1); if (navigator.vibrate) navigator.vibrate(18);
+            if (tasbihCount >= tasbihTarget) {
+                tasbihCount = 0; tasbihPhase = (tasbihPhase + 1) % tasbihPhrases.length;
+                if (navigator.vibrate) navigator.vibrate([40, 60, 40]);
+                showToast(`Завершено ${tasbihTarget}! Переход: ${tasbihPhrases[tasbihPhase].ru.split(' ')[0]}`);
+            }
+            updateTasbihUI(); saveTasbihState();
+        }
+        function resetTasbih() { tasbihCount = 0; updateTasbihUI(); saveTasbihState(); showToast('Счетчик сброшен'); }
+
+        // --- ОНЛАЙН ЗАГРУЗКА КОРАНА С ЗАЩИТОЙ ОТ ТАЙМАУТОВ ---
+        async function fetchSurahs() {
+            const list = document.getElementById('surah-list');
+            list.innerHTML = '<div class="text-center py-12 text-[var(--text-muted)]"><i class="fa-solid fa-circle-notch fa-spin text-3xl mb-3"></i><br><span class="text-sm font-medium">Загрузка сур...</span></div>';
+
+            const endpoints = [
+                'https://api.alquran.cloud/v1/surah',
+                'https://api.quran.com/api/v4/chapters?language=ru'
+            ];
+
+            for (const url of endpoints) {
+                try {
+                    const controller = new AbortController();
+                    const timeoutId = setTimeout(() => controller.abort(), 7000);
+                    const res = await fetch(url, { signal: controller.signal });
+                    clearTimeout(timeoutId);
+
+                    if (!res.ok) continue;
+                    const data = await res.json();
+                    
+                    if (data.data && Array.isArray(data.data)) {
+                        surahsData = data.data;
+                        renderSurahList();
+                        return;
+                    } else if (data.chapters && Array.isArray(data.chapters)) {
+                        surahsData = data.chapters.map(c => ({
+                            number: c.id,
+                            name: c.name_arabic,
+                            englishName: c.name_simple,
+                            revelationType: c.revelation_place === 'makkah' ? 'Meccan' : 'Medinan',
+                            numberOfAyahs: c.verses_count
+                        }));
+                        renderSurahList();
+                        return;
+                    }
+                } catch(e) {
+                    console.warn('Endpoint error:', url, e);
+                }
+            }
+
+            list.innerHTML = `
+                <div class="text-center py-8 text-[var(--text-muted)]">
+                    <p class="text-sm text-red-500 font-bold mb-3">Ошибка загрузки сур из сети</p>
+                    <button onclick="fetchSurahs()" class="px-4 py-2 bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 rounded-xl text-xs font-bold active:scale-95 transition">
+                        <i class="fa-solid fa-rotate-right mr-1"></i> Повторить попытку
+                    </button>
+                </div>`;
+        }
+        
+        function renderSurahList(filter = '') {
+            const list = document.getElementById('surah-list'); list.innerHTML = '';
+            surahsData.forEach(s => {
+                if (filter && !s.englishName.toLowerCase().includes(filter.toLowerCase()) && !s.name.includes(filter)) return;
+                const el = document.createElement('div');
+                el.className = 'card-base p-4 flex justify-between items-center cursor-pointer hover:border-emerald-500/50 transition mb-3.5';
+                el.onclick = () => { playSnd('quran'); openSurah(s.number, s.englishName); };
+                el.innerHTML = `
+                    <div class="flex gap-4 items-center">
+                        <div class="w-11 h-11 rounded-2xl bg-[var(--bg-main)] border border-[var(--card-border)] flex items-center justify-center font-bold text-[var(--text-muted)] text-sm shadow-inner">${s.number}</div>
+                        <div>
+                            <h4 class="font-bold text-[var(--text-main)] text-sm">${s.englishName}</h4>
+                            <p class="text-[10px] text-[var(--text-muted)] uppercase tracking-wider mt-1 font-semibold">${s.revelationType === 'Meccan' ? 'Мекканская' : 'Мединская'} • ${s.numberOfAyahs} аят.</p>
+                        </div>
+                    </div>
+                    <div class="arabic-text text-xl text-emerald-500 font-bold">${s.name}</div>`;
+                list.appendChild(el);
+            });
+        }
+        function filterSurahs() { renderSurahList(document.getElementById('surah-search').value); }
+
+        // --- УПРАВЛЕНИЕ СИНХРОНИЗАЦИЕЙ ВЕРХНЕГО ПЛЕЕРА ---
+        function syncTopPlayerStopped() {
+            const status = document.getElementById('top-player-status');
+            if(status) { status.textContent = 'Остановлено'; status.className = 'text-[11px] text-[var(--contrast-icon)] font-bold mt-0.5'; }
+            const btn = document.getElementById('top-play-btn');
+            if(btn) { btn.innerHTML = '<i class="fa-solid fa-play text-sm"></i>'; btn.className = 'w-10 h-10 rounded-2xl bg-[var(--contrast-input-bg)] text-[var(--contrast-icon)] flex items-center justify-center transition shadow-sm active:scale-95 hover:text-emerald-500'; }
+            const box = document.getElementById('top-player-icon-box');
+            if(box) box.className = 'w-12 h-12 rounded-2xl bg-[var(--contrast-input-bg)] flex items-center justify-center text-[var(--contrast-icon)] shrink-0 transition-colors';
+            const anim = document.getElementById('top-player-anim');
+            if(anim) anim.className = 'fa-solid fa-book-quran text-xl transition-all';
+        }
+
+        function syncTopPlayerPaused() {
+            const status = document.getElementById('top-player-status');
+            if(status) status.textContent = 'Пауза';
+            const anim = document.getElementById('top-player-anim');
+            if(anim) anim.classList.remove('animate-pulse');
+            const btn = document.getElementById('top-play-btn');
+            if(btn) btn.innerHTML = '<i class="fa-solid fa-play text-sm"></i>';
+        }
+
+        async function openSurah(id, name, startAyah = 0) {
+            resetScrollButtonState();
+            enableImmersiveMode();
+            document.getElementById('surah-list').style.display = 'none';
+            document.getElementById('quran-search-banner').style.display = 'none';
+            document.getElementById('quran-continue-prompt').style.display = 'none';
+            document.getElementById('surah-reader').classList.remove('hidden');
+            document.getElementById('reader-surah-name').textContent = `Сура ${id}. ${name}`;
+            
+            document.getElementById('top-player-title').textContent = `${name}`;
+            syncTopPlayerStopped();
+            
+            const c = document.getElementById('ayahs-container'); c.innerHTML = '<div class="text-center py-12 text-[var(--text-muted)]"><i class="fa-solid fa-circle-notch fa-spin text-3xl mb-3"></i><br><span class="text-sm font-medium">Загрузка аутентичного текста...</span></div>';
+            
+            const qari = document.getElementById('qari-select').value;
+            try {
+                const [resAr, resRu, resAu] = await Promise.all([ 
+                    fetch(`https://api.alquran.cloud/v1/surah/${id}/quran-uthmani`), 
+                    fetch(`https://api.alquran.cloud/v1/surah/${id}/ru.kuliev`), 
+                    fetch(`https://api.alquran.cloud/v1/surah/${id}/${qari}`) 
+                ]);
+                const dataAr = await resAr.json(); const dataRu = await resRu.json(); const dataAu = await resAu.json();
+                
+                currentSurah = { id: id, name: name, ayahs: dataAr.data.ayahs.map((a, i) => ({ number: a.numberInSurah, text: a.text, translation: dataRu.data.ayahs[i].text, audio: dataAu.data.ayahs[i].audio })) };
+                renderAyahs();
+                if(startAyah > 0) setTimeout(() => { const el = document.getElementById(`ayah-${startAyah-1}`); if(el) el.scrollIntoView({behavior: 'smooth', block: 'center'}); }, 500);
+            } catch(e) { 
+                c.innerHTML = `
+                    <div class="text-center py-8 text-[var(--text-muted)]">
+                        <p class="text-sm text-red-500 font-bold mb-3">Ошибка загрузки данных суры.</p>
+                        <button onclick="openSurah(${id}, '${name}', ${startAyah})" class="px-4 py-2 bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 rounded-xl text-xs font-bold active:scale-95 transition">
+                            <i class="fa-solid fa-rotate-right mr-1"></i> Повторить
+                        </button>
+                    </div>`; 
+            }
+        }
+
+        function renderAyahs() {
+            const container = document.getElementById('ayahs-container'); container.innerHTML = '';
+            currentSurah.ayahs.forEach((a, idx) => {
+                const el = document.createElement('div');
+                el.className = `card-base p-5 mb-4 ${idx === currentAyahIndex ? 'ayah-playing' : ''}`;
+                el.id = `ayah-${idx}`;
+                const isBookmarked = bookmarks.some(b => b.surahId === currentSurah.id && b.ayahNum === a.number);
+                
+                let ayahText = a.text; let basmalahHtml = '';
+                if (currentSurah.id !== 1 && currentSurah.id !== 9 && a.number === 1) {
+                    const wordsArr = ayahText.split(' ');
+                    if (wordsArr.length > 4) { basmalahHtml = `<div class="text-center text-emerald-500/90 mb-5 font-arabic text-3xl font-bold leading-loose" dir="rtl">${wordsArr.slice(0, 4).join(' ')}</div>`; ayahText = wordsArr.slice(4).join(' '); }
+                }
+                const wordsHtml = ayahText.split(' ').map(w => `<span class="ayah-word inline-block">${w}</span>`).join(' ');
+                const safeSurahName = currentSurah.name.replace(/'/g, "\\'");
+
+                el.innerHTML = `
+                    <div class="flex justify-between items-start mb-4">
+                        <span class="text-[11px] font-bold text-[var(--text-muted)] bg-[var(--bg-main)] px-3 py-1.5 rounded-xl border border-[var(--card-border)]">Аят ${a.number}</span>
+                        <div class="flex gap-2">
+                            <button onclick="toggleBookmark(${currentSurah.id}, '${safeSurahName}', ${a.number})" class="${isBookmarked ? 'green-gradient' : 'bg-[var(--bg-main)] text-[var(--text-muted)] border border-[var(--card-border)]'} text-xs w-9 h-9 rounded-xl flex items-center justify-center transition active:scale-95 shadow-sm"><i class="fa-solid fa-bookmark"></i></button>
+                            <button onclick="playSnd('quran'); playAyah(${idx})" class="bg-emerald-500/10 text-emerald-500 font-bold text-[11px] px-4 h-9 rounded-xl border border-emerald-500/20 hover:bg-emerald-500/20 transition flex items-center justify-center gap-2 active:scale-95"><i class="fa-solid fa-play text-[10px]"></i> Слушать</button>
+                        </div>
+                    </div>
+                    ${basmalahHtml}
+                    <p class="arabic-text text-[1.7rem] text-right text-[var(--text-main)] leading-[2.2] mb-4 font-bold" dir="rtl">${wordsHtml}</p>
+                    <p class="text-xs text-[var(--text-muted)] leading-relaxed font-medium">${a.translation}</p>
+                `;
+                container.appendChild(el);
+            });
+            lastQuranPosition = { surahId: currentSurah.id, surahName: currentSurah.name, ayahNum: 1 }; localStorage.setItem('hafiz_last_quran', JSON.stringify(lastQuranPosition));
+        }
+
+        function closeSurah() {
+            resetScrollButtonState();
+            disableImmersiveMode();
+            document.getElementById('surah-reader').classList.add('hidden'); document.getElementById('surah-list').style.display = 'block';
+            document.getElementById('quran-search-banner').style.display = 'flex';
+            stopAudio(true);
+            checkQuranPrompt();
+        }
+
+        const quranAudio = document.getElementById('quran-audio');
+        function toggleAudioMode() {
+            audioMode = (audioMode === 'follow') ? 'repeat' : 'follow';
+            const btn = document.getElementById('mini-mode-btn'); btn.textContent = (audioMode === 'follow') ? 'Следом' : 'Повтор';
+            const topBtn = document.getElementById('top-mode-btn'); if(topBtn) topBtn.textContent = (audioMode === 'follow') ? 'Следом' : 'Повтор';
+
+            if (audioMode === 'repeat') { 
+                btn.classList.add('text-emerald-500', 'bg-emerald-500/10', 'border-emerald-500/30'); 
+                btn.classList.remove('text-[var(--text-muted)]', 'bg-[var(--bg-main)]', 'border-[var(--card-border)]'); 
+                if(topBtn) {
+                    topBtn.classList.add('text-emerald-400', 'bg-emerald-500/20');
+                    topBtn.classList.remove('text-[var(--contrast-icon)]', 'bg-[var(--contrast-input-bg)]');
+                }
+            } else { 
+                btn.classList.remove('text-emerald-500', 'bg-emerald-500/10', 'border-emerald-500/30'); 
+                btn.classList.add('text-[var(--text-muted)]', 'bg-[var(--bg-main)]', 'border-[var(--card-border)]'); 
+                if(topBtn) {
+                    topBtn.classList.remove('text-emerald-400', 'bg-emerald-500/20');
+                    topBtn.classList.add('text-[var(--contrast-icon)]', 'bg-[var(--contrast-input-bg)]');
+                }
+            }
+            showToast('Режим аудио: ' + (audioMode === 'follow' ? 'Следом' : 'Повтор'));
+        }
+
+        function playAyah(idx) {
+            currentAyahIndex = idx; renderAyahs(); document.getElementById(`ayah-${idx}`).scrollIntoView({ behavior: 'smooth', block: 'center' });
+            quranAudio.src = currentSurah.ayahs[idx].audio; quranAudio.play().catch(e => {});
+            
+            document.body.classList.add('mini-player-active');
+            document.getElementById('quran-mini-player').classList.remove('hidden');
+            document.getElementById('mini-player-title').textContent = `${currentSurah.name} • Аят ${currentSurah.ayahs[idx].number}`;
+            document.getElementById('mini-player-status').textContent = 'Воспроизведение...';
+            document.getElementById('mini-play-btn').innerHTML = '<i class="fa-solid fa-pause text-sm"></i>';
+            
+            const topTitle = document.getElementById('top-player-title');
+            if(topTitle) topTitle.textContent = `Аят ${currentSurah.ayahs[idx].number}`;
+            const topStatus = document.getElementById('top-player-status');
+            if(topStatus) { topStatus.textContent = 'Воспроизведение...'; topStatus.className = 'text-[11px] text-emerald-400 font-bold mt-0.5'; }
+            const topBtn = document.getElementById('top-play-btn');
+            if(topBtn) { topBtn.innerHTML = '<i class="fa-solid fa-pause text-sm"></i>'; topBtn.className = 'w-10 h-10 rounded-2xl green-gradient text-white flex items-center justify-center transition shadow-md active:scale-95'; }
+            const topBox = document.getElementById('top-player-icon-box');
+            if(topBox) topBox.className = 'w-12 h-12 rounded-2xl bg-emerald-500/20 flex items-center justify-center text-emerald-500 shrink-0 transition-colors';
+            const topAnim = document.getElementById('top-player-anim');
+            if(topAnim) topAnim.className = 'fa-solid fa-volume-high text-lg animate-pulse transition-all';
+            
+            quranAudio.onended = () => { clearWordHighlights(); if (audioMode === 'follow' && idx < currentSurah.ayahs.length - 1) playAyah(idx + 1); else if (audioMode === 'repeat') playAyah(idx); else { currentAyahIndex = -1; renderAyahs(); hideMiniPlayer(); syncTopPlayerStopped(); } };
+        }
+
+        function toggleMiniPlayerPlay() {
+            if (currentAyahIndex < 0 && currentSurah && currentSurah.ayahs.length > 0) {
+                playAyah(0);
+                return;
+            }
+
+            if (quranAudio.paused) { 
+                quranAudio.play(); 
+                document.getElementById('mini-play-btn').innerHTML = '<i class="fa-solid fa-pause text-sm"></i>'; 
+                document.getElementById('mini-player-status').textContent = 'Воспроизведение...'; 
+                
+                const topBtn = document.getElementById('top-play-btn');
+                if(topBtn) { topBtn.innerHTML = '<i class="fa-solid fa-pause text-sm"></i>'; topBtn.className = 'w-10 h-10 rounded-2xl green-gradient text-white flex items-center justify-center transition shadow-md active:scale-95'; }
+                const topStatus = document.getElementById('top-player-status');
+                if(topStatus) { topStatus.textContent = 'Воспроизведение...'; topStatus.className = 'text-[11px] text-emerald-400 font-bold mt-0.5'; }
+                const topBox = document.getElementById('top-player-icon-box');
+                if(topBox) topBox.className = 'w-12 h-12 rounded-2xl bg-emerald-500/20 flex items-center justify-center text-emerald-500 shrink-0 transition-colors';
+                const topAnim = document.getElementById('top-player-anim');
+                if(topAnim) topAnim.className = 'fa-solid fa-volume-high text-lg animate-pulse transition-all';
+                
+                document.body.classList.add('mini-player-active');
+                document.getElementById('quran-mini-player').classList.remove('hidden');
+                renderAyahs();
+            } else { 
+                quranAudio.pause(); 
+                document.getElementById('mini-play-btn').innerHTML = '<i class="fa-solid fa-play text-sm"></i>'; 
+                document.getElementById('mini-player-status').textContent = 'Пауза'; 
+                
+                syncTopPlayerPaused();
+            }
+        }
+
+        function stopAudio(fullReset = false) { 
+            quranAudio.pause(); 
+            if(fullReset) {
+                quranAudio.currentTime = 0; 
+                currentAyahIndex = -1; 
+            }
+            clearWordHighlights(); 
+            renderAyahs(); 
+            hideMiniPlayer(); 
+            
+            if (currentAyahIndex >= 0) {
+                syncTopPlayerPaused();
+            } else {
+                syncTopPlayerStopped();
+            }
+        }
+        
+        function hideMiniPlayer() { 
+            document.body.classList.remove('mini-player-active');
+            document.getElementById('quran-mini-player').classList.add('hidden'); 
+        }
+        function clearWordHighlights() { document.querySelectorAll('.ayah-word').forEach(w => { w.classList.remove('text-emerald-500'); w.style.textShadow = 'none'; }); }
+
+        quranAudio.addEventListener('timeupdate', () => {
+            if (!quranAudio.duration || currentAyahIndex < 0) return;
+            const ayahElement = document.getElementById(`ayah-${currentAyahIndex}`); if (!ayahElement) return;
+            const words = ayahElement.querySelectorAll('.ayah-word'); if (words.length === 0) return;
+            const progress = quranAudio.currentTime / quranAudio.duration; const currentWordIndex = Math.min(Math.floor(progress * words.length), words.length - 1);
+            words.forEach((w, i) => { if (i === currentWordIndex) { w.classList.add('text-emerald-500'); w.style.textShadow = '0 0 10px rgba(16, 185, 129, 0.4)'; } else { w.classList.remove('text-emerald-500'); w.style.textShadow = 'none'; } });
+        });
+
+        function toggleBookmark(sId, sName, aNum) {
+            const idx = bookmarks.findIndex(b => b.surahId === sId && b.ayahNum === aNum);
+            if (idx > -1) { bookmarks.splice(idx, 1); showToast('Закладка удалена'); }
+            else { 
+                bookmarks.push({ surahId: sId, surahName: sName, ayahNum: aNum, time: Date.now() }); showToast('Закладка добавлена'); 
+                if (heartState.bookmarksToday < 3) { heartState.bookmarksToday++; localStorage.setItem('hafiz_heart', JSON.stringify(heartState)); setTimeout(() => gainXP(15), 500); }
+            }
+            localStorage.setItem('hafiz_bookmarks', JSON.stringify(bookmarks)); updateBookmarksBadge(); if (currentSurah) renderAyahs();
+        }
+
+        function updateBookmarksBadge() { const b = document.getElementById('bookmarks-badge'); if (bookmarks.length > 0) { b.textContent = bookmarks.length; b.classList.remove('hidden'); } else b.classList.add('hidden'); }
+
+        function openBookmarksModal() {
+            const c = document.getElementById('bookmarks-container'); c.innerHTML = '';
+            if(bookmarks.length === 0) { c.innerHTML = '<p class="text-sm font-medium text-[var(--text-muted)] text-center py-6">Нет закладок</p>'; }
+            bookmarks.forEach(bm => {
+                const el = document.createElement('div');
+                el.className = 'card-base p-4 text-sm font-bold flex justify-between items-center cursor-pointer hover:border-emerald-500/50 transition mb-3';
+                el.onclick = () => { closeModal('bookmarks-modal'); switchTab('quran'); openSurah(bm.surahId, bm.surahName, bm.ayahNum); };
+                el.innerHTML = `<span>Сура ${bm.surahId} (${bm.surahName}), Аят ${bm.ayahNum}</span><i class="fa-solid fa-chevron-right text-[var(--contrast-icon)] text-xs"></i>`;
+                c.appendChild(el);
+            });
+            openModal('bookmarks-modal');
+        }
+
+        function checkQuranPrompt() { const p = document.getElementById('quran-continue-prompt'); if (lastQuranPosition) { document.getElementById('quran-continue-text').textContent = `Сура ${lastQuranPosition.surahId}. ${lastQuranPosition.surahName}`; p.style.display = 'flex'; } else { p.style.display = 'none'; } }
+        function continueQuran() { if (lastQuranPosition) openSurah(lastQuranPosition.surahId, lastQuranPosition.surahName, lastQuranPosition.ayahNum); }
+        function dismissQuranPrompt() { document.getElementById('quran-continue-prompt').style.display = 'none'; }
+
+        // --- PWA INSTALL LOGIC ---
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            deferredPrompt = e;
+            const btn = document.getElementById('install-pwa-btn');
+            if (btn) btn.classList.remove('hidden');
+        });
+
+        function installPWA() {
+            if (deferredPrompt) {
+                deferredPrompt.prompt();
+                deferredPrompt.userChoice.then((choiceResult) => {
+                    if (choiceResult.outcome === 'accepted') {
+                        console.log('Пользователь установил PWA');
+                    }
+                    deferredPrompt = null;
+                    document.getElementById('install-pwa-btn').classList.add('hidden');
+                });
+            }
+        }
+    </script>
+</body>
+</html>
